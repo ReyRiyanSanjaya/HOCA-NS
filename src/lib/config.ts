@@ -11,7 +11,7 @@ export const APP_CONFIG = {
 // Google Apps Script Web App URL
 export const GAS_BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ||
-  "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec";
+  "https://script.google.com/macros/s/AKfycbzmwQgWGw-sJPAd2aB1YEODYyYfAAnwDXAntmKA5WWOldKwN5wDNfkdCNgLce-rwxjdaw/exec";
 
 export const API_ENDPOINTS = {
   masterBTS:      `${GAS_BASE_URL}?action=master-bts`,
@@ -78,4 +78,4 @@ export const STORAGE_KEYS = {
 // Ganti sesuai keinginan — simpan di .env untuk produksi
 // ============================================================
 export const IMPORT_PASSWORD =
-  process.env.NEXT_PUBLIC_IMPORT_PASSWORD || "admin123";
+  process.env.NEXT_PUBLIC_IMPORT_PASSWORD || "HocaNS2025";
