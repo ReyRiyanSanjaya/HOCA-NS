@@ -9,7 +9,7 @@
 // ============================================================
 // CONFIGURATION — Update these IDs
 // ============================================================
-var SPREADSHEET_ID   = 'YOUR_GOOGLE_SPREADSHEET_ID';
+var SPREADSHEET_ID   = '1k1mc6ceMUgZEFGb7P21NEbkIyoejXokwr5CsBrNJLwMnilFmEWCxDbzBini';
 var SHEET_MASTER_BTS      = 'MASTER_BTS';
 var SHEET_MASTER_PROMOTOR = 'MASTER_PROMOTOR';
 var SHEET_MASTER_SPV      = 'MASTER_SPV';
