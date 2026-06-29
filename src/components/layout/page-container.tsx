@@ -3,27 +3,16 @@ import { cn } from "@/lib/utils";
 interface PageContainerProps {
   children: React.ReactNode;
   className?: string;
-  fullWidth?: boolean;
+  noPadding?: boolean;
 }
 
-export function PageContainer({
-  children,
-  className,
-  fullWidth,
-}: PageContainerProps) {
+export function PageContainer({ children, className, noPadding }: PageContainerProps) {
   return (
-    <main
-      className={cn(
-        "min-h-screen pb-20 md:pb-4 md:pl-16 lg:pl-56",
-        className
-      )}
-    >
-      <div
-        className={cn(
-          "w-full",
-          !fullWidth && "max-w-7xl mx-auto px-4 py-4 md:px-6 md:py-6"
-        )}
-      >
+    <main className={cn("page-offset min-h-screen", className)}>
+      <div className={cn(
+        "w-full max-w-7xl mx-auto",
+        !noPadding && "px-4 py-5 md:px-5 md:py-6"
+      )}>
         {children}
       </div>
     </main>

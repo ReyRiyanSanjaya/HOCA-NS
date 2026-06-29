@@ -1,141 +1,248 @@
 @import "tailwindcss";
 
+/* ── CSS Variables ─────────────────────────────────────────── */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 94%;
+    --muted-foreground: 215 20% 52%;
+    --accent: 210 40% 94%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.75rem;
-    --chart-1: 221.2 83.2% 53.3%;
-    --chart-2: 142.1 76.2% 36.3%;
-    --chart-3: 30.7 97.2% 52%;
-    --chart-4: 346.8 77.2% 49.8%;
-    --chart-5: 291.1 70% 50%;
+    --border: 214 32% 88%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    --radius: 0.875rem;
+    --sidebar-w: 3.5rem;
+    --sidebar-w-lg: 14rem;
   }
+
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 47% 10%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 63% 44%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-    --chart-1: 217.2 91.2% 59.8%;
-    --chart-2: 142.1 70.6% 45.3%;
-    --chart-3: 30.7 97.2% 52%;
-    --chart-4: 346.8 77.2% 49.8%;
-    --chart-5: 291.1 70% 50%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 224 76% 48%;
   }
 }
 
+/* ── Base resets ───────────────────────────────────────────── */
 @layer base {
-  * {
-    border-color: hsl(var(--border));
-  }
+  * { border-color: hsl(var(--border)); box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
 }
 
-/* Glass morphism utilities */
-.glass {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.dark .glass {
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-}
-
-.dark .glass-card {
-  background: rgba(17, 25, 40, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.125);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-}
-
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* ── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 2px;
+  background: hsl(var(--muted-foreground) / 0.25);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.45);
 }
 
-/* Leaflet overrides */
+/* ── Glass morphism ────────────────────────────────────────── */
+.glass {
+  background: rgba(255,255,255,0.65);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.55);
+}
+.dark .glass {
+  background: rgba(15,23,42,0.7);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.glass-strong {
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255,255,255,0.7);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+}
+.dark .glass-strong {
+  background: rgba(15,23,42,0.85);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+/* ── KPI card gradient shimmer ─────────────────────────────── */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* ── Gradient backgrounds for accent panels ────────────────── */
+.gradient-blue   { background: linear-gradient(135deg,#3b82f6,#2563eb); }
+.gradient-green  { background: linear-gradient(135deg,#10b981,#059669); }
+.gradient-purple { background: linear-gradient(135deg,#8b5cf6,#7c3aed); }
+.gradient-orange { background: linear-gradient(135deg,#f59e0b,#d97706); }
+.gradient-pink   { background: linear-gradient(135deg,#ec4899,#db2777); }
+.gradient-cyan   { background: linear-gradient(135deg,#06b6d4,#0891b2); }
+.gradient-rose   { background: linear-gradient(135deg,#f43f5e,#e11d48); }
+.gradient-indigo { background: linear-gradient(135deg,#6366f1,#4f46e5); }
+.gradient-teal   { background: linear-gradient(135deg,#14b8a6,#0d9488); }
+.gradient-slate  { background: linear-gradient(135deg,#64748b,#475569); }
+.gradient-amber  { background: linear-gradient(135deg,#f59e0b,#d97706); }
+.gradient-fuchsia{ background: linear-gradient(135deg,#d946ef,#c026d3); }
+
+/* ── Sidebar ───────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  transition: width 0.25s cubic-bezier(.4,0,.2,1);
+}
+@media (min-width: 1024px) {
+  .sidebar { width: var(--sidebar-w-lg); }
+}
+
+/* ── Page content offset ───────────────────────────────────── */
+.page-offset {
+  padding-left: 0;
+  padding-bottom: 5rem; /* bottom nav */
+}
+@media (min-width: 768px) {
+  .page-offset {
+    padding-left: var(--sidebar-w);
+    padding-bottom: 1.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  .page-offset { padding-left: var(--sidebar-w-lg); }
+}
+
+/* ── Leaflet ───────────────────────────────────────────────── */
 .leaflet-container {
   width: 100%;
   height: 100%;
   font-family: inherit;
+  border-radius: inherit;
+}
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+.leaflet-control-zoom a {
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  font-size: 16px !important;
+  color: #334155 !important;
+  background: white !important;
+}
+.dark .leaflet-control-zoom a {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
 }
 
-/* Smooth animations */
+/* ── Animations ────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-@keyframes slideIn {
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes slideInLeft {
   from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
+  to   { transform: translateX(0); }
 }
-@keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
+  70%  { box-shadow: 0 0 0 10px rgba(59,130,246,0); }
+  100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
 }
 
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
-.animate-slide-in { animation: slideIn 0.3s ease-out; }
-.animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+.animate-fade-up      { animation: fadeUp       0.3s ease-out both; }
+.animate-fade-in      { animation: fadeIn       0.25s ease-out both; }
+.animate-slide-in     { animation: slideInLeft  0.3s cubic-bezier(.4,0,.2,1) both; }
+.animate-slide-right  { animation: slideInRight 0.3s cubic-bezier(.4,0,.2,1) both; }
+.animate-scale-in     { animation: scaleIn      0.2s ease-out both; }
+.animate-pulse-ring   { animation: pulse-ring   1.5s ease-out infinite; }
 
-/* Mobile touch improvements */
+/* Stagger children */
+.stagger > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger > *:nth-child(2)  { animation-delay: 40ms; }
+.stagger > *:nth-child(3)  { animation-delay: 80ms; }
+.stagger > *:nth-child(4)  { animation-delay: 120ms; }
+.stagger > *:nth-child(5)  { animation-delay: 160ms; }
+.stagger > *:nth-child(6)  { animation-delay: 200ms; }
+.stagger > *:nth-child(7)  { animation-delay: 240ms; }
+.stagger > *:nth-child(8)  { animation-delay: 280ms; }
+.stagger > *:nth-child(9)  { animation-delay: 320ms; }
+.stagger > *:nth-child(10) { animation-delay: 360ms; }
+.stagger > *:nth-child(n+11) { animation-delay: 400ms; }
+
+/* ── Mobile touch ──────────────────────────────────────────── */
 @media (max-width: 768px) {
   * { -webkit-tap-highlight-color: transparent; }
-  button, a { touch-action: manipulation; }
+  button, a, [role="button"] { touch-action: manipulation; }
+  input, select, textarea { font-size: 16px; } /* prevent iOS zoom */
 }
+
+/* ── Safe area (notch/home indicator) ──────────────────────── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
+
+/* ── Safe area ─────────────────────────────────────────────── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
+
+/* ── Slide up for bottom drawer ────────────────────────────── */
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.animate-slide-up { animation: slideUp 0.32s cubic-bezier(.4,0,.2,1) both; }
