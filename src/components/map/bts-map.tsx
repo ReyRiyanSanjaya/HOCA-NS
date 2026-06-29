@@ -251,18 +251,18 @@ function LegendPanel({
   enrichedCount: number;
   visibleCount: number;
 }) {
-  const [expanded, setExpanded] = React.useState(true);
-  const achieved = summary.achieved;
-  const total    = enrichedCount;
+  const [expanded, setExpanded] = React.useState(false);
+  const achieved   = summary.achieved;
+  const total      = enrichedCount;
   const overallPct = total > 0 ? Math.round((achieved / total) * 100) : 0;
   const critical   = summary.not_started + summary.problem;
 
   return (
-    <div className="bg-card/97 backdrop-blur-md rounded-2xl border border-border/60 shadow-lg overflow-hidden max-w-[220px]">
-      {/* Header row */}
+    <div className="bg-card/97 backdrop-blur-md rounded-2xl border border-border/60 shadow-lg overflow-hidden w-[210px]">
+      {/* ── Header (always visible) ───────────────────── */}
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/30 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors"
       >
         <div className="h-5 w-5 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
           <Layers className="h-3 w-3 text-blue-500" />
@@ -279,61 +279,91 @@ function LegendPanel({
         }
       </button>
 
-      {expanded && (
-        <div className="px-3 pb-3 space-y-2 border-t border-border/30">
-          {/* Overall bar */}
-          <div className="pt-2">
+      {/* ── Collapsed mini view (always visible) ─────── */}
+      {!expanded && (
+        <div className="px-3 pb-2 border-t border-border/30">
+          {/* Overall progress */}
+          <div className="pt-2 mb-2">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-muted-foreground">Overall Achieved</span>
+              <span className="text-[9px] text-muted-foreground">Achieved</span>
               <span className="text-[10px] font-bold text-green-600">{overallPct}%</span>
             </div>
             <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${overallPct}%`, background: overallPct >= 70 ? "#22c55e" : overallPct >= 40 ? "#eab308" : "#ef4444" }}
-              />
+              <div className="h-full rounded-full transition-all"
+                style={{ width:`${overallPct}%`, background: overallPct>=70?"#22c55e":overallPct>=40?"#eab308":"#ef4444" }}/>
             </div>
-            <p className="text-[9px] text-muted-foreground mt-0.5 tabular-nums">
-              Tampil: {visibleCount}/{enrichedCount} tower
-            </p>
+            <p className="text-[9px] text-muted-foreground mt-0.5 tabular-nums">{visibleCount}/{enrichedCount} tower</p>
           </div>
+          {/* Compact dot row */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(["achieved","on_progress","not_started","today","problem","no_target"] as TargetStatus[]).map(s => (
+              <div key={s} title={`${TARGET_LABELS[s]}: ${summary[s]}`}
+                className="flex items-center gap-1">
+                <div className={cn("h-2.5 w-2.5 rounded-full border border-white/40", s==="not_started"?"bts-bounce":"")}
+                  style={{ backgroundColor: TARGET_COLORS[s] }} />
+                <span className="text-[9px] font-bold tabular-nums">{summary[s]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-          {/* Status rows */}
-          <div className="space-y-1.5">
-            {(["achieved","on_progress","not_started","today","problem","no_target"] as TargetStatus[]).map(s => {
-              const cnt = summary[s];
-              const pct = enrichedCount > 0 ? Math.round((cnt / enrichedCount) * 100) : 0;
-              return (
-                <div key={s} className="group">
-                  <div className="flex items-center gap-2">
+      {/* ── Expanded full view ────────────────────────── */}
+      {expanded && (
+        <div className="border-t border-border/30">
+          {/* Scrollable area with max height */}
+          <div className="overflow-y-auto px-3 pb-3 space-y-2" style={{ maxHeight: "40vh" }}>
+            {/* Overall bar */}
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-muted-foreground">Overall Achieved</span>
+                <span className="text-[10px] font-bold text-green-600">{overallPct}%</span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all"
+                  style={{ width:`${overallPct}%`, background:overallPct>=70?"#22c55e":overallPct>=40?"#eab308":"#ef4444" }}/>
+              </div>
+              <p className="text-[9px] text-muted-foreground mt-0.5 tabular-nums">{visibleCount}/{enrichedCount} tower</p>
+            </div>
+
+            {/* Status rows — compact */}
+            <div className="space-y-1">
+              {(["achieved","on_progress","not_started","today","problem","no_target"] as TargetStatus[]).map(s => {
+                const cnt = summary[s];
+                const pct = enrichedCount > 0 ? Math.round((cnt / enrichedCount) * 100) : 0;
+                return (
+                  <div key={s} className="flex items-center gap-2">
                     <div
-                      className={cn(
-                        "h-3 w-3 rounded-full shrink-0 border-2 border-white/50",
-                        s === "not_started" ? "bts-bounce" : ""
-                      )}
-                      style={{ backgroundColor: TARGET_COLORS[s], boxShadow: `0 0 0 1px ${TARGET_COLORS[s]}40` }}
+                      className={cn("h-3 w-3 rounded-full shrink-0 border-2 border-white/50", s==="not_started"?"bts-bounce":"")}
+                      style={{ backgroundColor: TARGET_COLORS[s], boxShadow:`0 0 0 1px ${TARGET_COLORS[s]}40` }}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-medium">{LEGEND_ICONS[s]} {TARGET_LABELS[s]}</span>
+                        <span className="text-[10px] font-medium truncate">{LEGEND_ICONS[s]} {TARGET_LABELS[s]}</span>
                         <span className="text-[10px] font-bold tabular-nums ml-1 shrink-0">{cnt}</span>
                       </div>
                       <div className="h-0.5 bg-muted rounded-full overflow-hidden mt-0.5">
-                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: TARGET_COLORS[s] }} />
+                        <div className="h-full rounded-full" style={{ width:`${pct}%`, background:TARGET_COLORS[s] }}/>
                       </div>
                     </div>
                   </div>
-                  <p className="text-[9px] text-muted-foreground ml-5 leading-tight mt-0.5">
-                    {LEGEND_ACTIONS[s]}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          {/* Bounce indicator */}
-          <div className="rounded-lg bg-red-500/8 border border-red-500/20 px-2 py-1.5 text-[9px] text-red-600 dark:text-red-400">
-            🔴 Marker merah <b>memantul</b> = butuh tindakan segera
+            {/* Action hints */}
+            <div className="space-y-1 pt-1 border-t border-border/30">
+              {(["not_started","on_progress","problem"] as TargetStatus[]).filter(s=>summary[s]>0).map(s=>(
+                <p key={s} className="text-[9px] text-muted-foreground leading-snug">
+                  <span className="font-semibold" style={{color:TARGET_COLORS[s]}}>{LEGEND_ICONS[s]}</span>{" "}
+                  {LEGEND_ACTIONS[s]}
+                </p>
+              ))}
+            </div>
+
+            <div className="rounded-lg bg-red-500/8 border border-red-500/20 px-2 py-1.5 text-[9px] text-red-600 dark:text-red-400">
+              🔴 Marker merah <b>memantul</b> = prioritas utama
+            </div>
           </div>
         </div>
       )}
@@ -691,10 +721,12 @@ export function BTSMap({ filter }: BTSMapProps) {
         </div>
       )}
 
-      {/* ── LEGEND + STATS (bottom-left) ──────────────────────────────── */}
-      <div className="absolute bottom-20 md:bottom-5 left-3 z-10 flex flex-col gap-2">
-        {/* Legend — collapsible */}
-        <LegendPanel summary={summary} enrichedCount={enriched.length} visibleCount={visibleMarkers.length} />
+      {/* ── LEGEND (bottom-left, scrollable, constrained height) ────── */}
+      <div className="absolute bottom-20 md:bottom-4 left-3 z-10"
+        style={{ maxHeight: "calc(100% - 120px)" }}>
+        <div className="overflow-y-auto" style={{ maxHeight: "inherit" }}>
+          <LegendPanel summary={summary} enrichedCount={enriched.length} visibleCount={visibleMarkers.length} />
+        </div>
       </div>
 
       {/* ── MAP VIEW + LOCATION (bottom-right) ──────────────────────── */}
