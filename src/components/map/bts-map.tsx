@@ -92,30 +92,253 @@ type MapView = "street" | "satellite" | "terrain";
 
 interface BTSMapProps { filter: Partial<GlobalFilter>; }
 
+// ─── inject bounce + pulse CSS once ─────────────────────────────────────────
+function injectMarkerCSS() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("bts-marker-css")) return;
+  const style = document.createElement("style");
+  style.id = "bts-marker-css";
+  style.textContent = `
+    @keyframes bts-bounce {
+      0%,100% { transform: translateY(0) scale(1); }
+      30%      { transform: translateY(-10px) scale(1.1); }
+      60%      { transform: translateY(-4px) scale(1.05); }
+    }
+    @keyframes bts-pulse-ring {
+      0%   { transform: scale(1);   opacity: 0.8; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+    @keyframes bts-selected-pop {
+      0%   { transform: scale(0.8); }
+      60%  { transform: scale(1.25); }
+      100% { transform: scale(1); }
+    }
+    .bts-bounce   { animation: bts-bounce 1.4s ease-in-out infinite; }
+    .bts-pulse    { animation: bts-pulse-ring 1.6s ease-out infinite; }
+    .bts-selected { animation: bts-selected-pop 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+  `;
+  document.head.appendChild(style);
+}
+
 // ─── marker SVG factory ──────────────────────────────────────────────────────
-function makeMarkerHtml(color: string, isToday: boolean, pct: number): string {
-  const ring = isToday ? `box-shadow:0 0 0 3px ${color}55,0 2px 10px ${color}88` : `box-shadow:0 2px 8px rgba(0,0,0,0.4)`;
+function makeMarkerHtml(
+  color: string,
+  isToday: boolean,
+  pct: number,
+  status: TargetStatus,
+  isSelected = false,
+): string {
+  const shouldBounce  = status === "not_started";
+  const shouldPulse   = status === "not_started" || status === "problem";
+  const size          = isSelected ? 34 : status === "not_started" ? 28 : 26;
+  const border        = isSelected ? "3px solid white" : "2.5px solid white";
+
+  let shadow = `box-shadow:0 2px 8px rgba(0,0,0,0.4)`;
+  if (isToday)    shadow = `box-shadow:0 0 0 3px ${color}55,0 2px 10px ${color}88`;
+  if (isSelected) shadow = `box-shadow:0 0 0 4px ${color}66,0 4px 16px ${color}99`;
+
   const innerBar = pct > 0 && pct < 100
-    ? `<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.min(pct, 100) * 0.28}px;
+    ? `<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.min(pct,100)*0.28}px;
         background:rgba(255,255,255,0.5);border-radius:0 0 50% 50%;"></div>`
     : "";
-  return `<div style="
-    width:26px;height:26px;border-radius:50%;
-    background-color:${color};
-    border:2.5px solid white;
-    ${ring};
-    display:flex;align-items:center;justify-content:center;
-    cursor:pointer;position:relative;overflow:hidden;
-    transition:transform 0.15s;
-  ">
-    ${innerBar}
-    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" style="position:relative;z-index:1">
-      <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
-      <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
-      <path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"/>
-      <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
-    </svg>
+
+  // Pulse ring (separate element behind the dot)
+  const pulseRing = shouldPulse
+    ? `<div class="bts-pulse" style="
+        position:absolute;width:${size}px;height:${size}px;border-radius:50%;
+        background:${color};top:0;left:0;pointer-events:none;z-index:0;
+      "></div>`
+    : "";
+
+  const wrapClass = [
+    shouldBounce  ? "bts-bounce"   : "",
+    isSelected    ? "bts-selected" : "",
+  ].filter(Boolean).join(" ");
+
+  return `<div style="position:relative;width:${size}px;height:${size}px;">
+    ${pulseRing}
+    <div class="${wrapClass}" style="
+      width:${size}px;height:${size}px;border-radius:50%;
+      background-color:${color};
+      border:${border};
+      ${shadow};
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;position:relative;overflow:hidden;z-index:1;
+      transition:transform 0.15s;
+    ">
+      ${innerBar}
+      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+        fill="none" stroke="white" stroke-width="2.5" style="position:relative;z-index:1">
+        <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+        <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+        <path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"/>
+        <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+      </svg>
+    </div>
   </div>`;
+}
+
+// ─── rich tooltip content ─────────────────────────────────────────────────────
+function makeTooltipHtml(bts: EnrichedMarker): string {
+  const color   = TARGET_COLORS[bts.targetStatus];
+  const pctStr  = bts.target > 0 ? `${Math.min(bts.progressPct, 100).toFixed(0)}%` : "—";
+  const gapStr  = bts.gap > 0 ? `Kurang: <b style="color:#ef4444">${bts.gap}</b> aktivasi` : bts.target > 0 ? `<span style="color:#22c55e">✓ Target tercapai</span>` : "";
+
+  const actionMap: Record<TargetStatus, string> = {
+    not_started: "🚨 Segera kirim promotor ke tower ini",
+    on_progress: "⚡ Tingkatkan frekuensi kunjungan",
+    achieved:    "✅ Pertahankan — target sudah tercapai",
+    today:       "🔵 Tower aktif hari ini",
+    problem:     "⚠️ Cek kondisi tower — ada masalah",
+    no_target:   "📋 Set target di master BTS",
+  };
+
+  return `<div style="font-family:inherit;min-width:200px;max-width:240px;padding:2px 0">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <div style="width:10px;height:10px;border-radius:50%;background:${color};shrink:0;flex-shrink:0"></div>
+      <b style="font-size:12px">${bts.id}</b>
+    </div>
+    ${bts.towerName ? `<p style="font-size:11px;color:#888;margin:0 0 6px">${bts.towerName}</p>` : ""}
+    <div style="background:${color}18;border-radius:8px;padding:6px 8px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:11px;color:${color};font-weight:700">${TARGET_LABELS[bts.targetStatus]}</span>
+        <span style="font-size:14px;font-weight:800;color:${color}">${pctStr}</span>
+      </div>
+      <div style="font-size:10px;color:#888;margin-top:2px">${bts.activationCount} aktivasi / ${bts.target > 0 ? `${bts.target} target` : "no target"}</div>
+      ${bts.target > 0 ? `
+        <div style="margin-top:5px;height:5px;background:rgba(0,0,0,0.1);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(bts.progressPct,100)}%;background:${color};border-radius:99px"></div>
+        </div>` : ""}
+      ${gapStr ? `<div style="font-size:10px;margin-top:3px">${gapStr}</div>` : ""}
+    </div>
+    <div style="font-size:10px;color:#666;display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-bottom:6px">
+      <span>📍 ${bts.kabupaten||"—"}</span>
+      <span>📡 ${bts.cluster||"—"}</span>
+      ${bts.spv ? `<span>👤 SPV: ${bts.spv}</span>` : ""}
+      ${bts.pm  ? `<span>🏢 PM: ${bts.pm}</span>` : ""}
+    </div>
+    ${bts.lastActivation ? `<div style="font-size:10px;color:#888;margin-bottom:6px">🕒 Terakhir: ${bts.lastActivation}</div>` : ""}
+    <div style="font-size:10px;background:#f1f5f9;border-radius:6px;padding:5px 7px;color:#475569;font-style:italic">
+      ${actionMap[bts.targetStatus]}
+    </div>
+    <div style="font-size:9px;color:#aaa;margin-top:4px;text-align:center">Klik untuk detail lengkap</div>
+  </div>`;
+}
+
+// ─── Legend panel component ───────────────────────────────────────────────────
+const LEGEND_ACTIONS: Record<TargetStatus, string> = {
+  not_started: "Belum ada aktivasi — prioritas utama",
+  on_progress: "Sudah berjalan, belum capai target",
+  achieved:    "Target sudah tercapai",
+  today:       "Ada aktivasi hari ini",
+  problem:     "Ada masalah pada tower",
+  no_target:   "Target belum diset di master BTS",
+};
+
+const LEGEND_ICONS: Record<TargetStatus, string> = {
+  not_started: "🔴",
+  on_progress: "🟡",
+  achieved:    "✅",
+  today:       "🔵",
+  problem:     "🟣",
+  no_target:   "⬜",
+};
+
+function LegendPanel({
+  summary, enrichedCount, visibleCount,
+}: {
+  summary: Record<TargetStatus, number>;
+  enrichedCount: number;
+  visibleCount: number;
+}) {
+  const [expanded, setExpanded] = React.useState(true);
+  const achieved = summary.achieved;
+  const total    = enrichedCount;
+  const overallPct = total > 0 ? Math.round((achieved / total) * 100) : 0;
+  const critical   = summary.not_started + summary.problem;
+
+  return (
+    <div className="bg-card/97 backdrop-blur-md rounded-2xl border border-border/60 shadow-lg overflow-hidden max-w-[220px]">
+      {/* Header row */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/30 transition-colors"
+      >
+        <div className="h-5 w-5 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
+          <Layers className="h-3 w-3 text-blue-500" />
+        </div>
+        <span className="text-[10px] font-bold text-foreground flex-1 text-left">Status Tower</span>
+        {critical > 0 && (
+          <span className="text-[9px] bg-red-500/15 text-red-600 font-bold px-1.5 py-0.5 rounded-full shrink-0">
+            {critical}⚠
+          </span>
+        )}
+        {expanded
+          ? <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+          : <ChevronUp className="h-3 w-3 text-muted-foreground shrink-0" />
+        }
+      </button>
+
+      {expanded && (
+        <div className="px-3 pb-3 space-y-2 border-t border-border/30">
+          {/* Overall bar */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-muted-foreground">Overall Achieved</span>
+              <span className="text-[10px] font-bold text-green-600">{overallPct}%</span>
+            </div>
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${overallPct}%`, background: overallPct >= 70 ? "#22c55e" : overallPct >= 40 ? "#eab308" : "#ef4444" }}
+              />
+            </div>
+            <p className="text-[9px] text-muted-foreground mt-0.5 tabular-nums">
+              Tampil: {visibleCount}/{enrichedCount} tower
+            </p>
+          </div>
+
+          {/* Status rows */}
+          <div className="space-y-1.5">
+            {(["achieved","on_progress","not_started","today","problem","no_target"] as TargetStatus[]).map(s => {
+              const cnt = summary[s];
+              const pct = enrichedCount > 0 ? Math.round((cnt / enrichedCount) * 100) : 0;
+              return (
+                <div key={s} className="group">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "h-3 w-3 rounded-full shrink-0 border-2 border-white/50",
+                        s === "not_started" ? "bts-bounce" : ""
+                      )}
+                      style={{ backgroundColor: TARGET_COLORS[s], boxShadow: `0 0 0 1px ${TARGET_COLORS[s]}40` }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-medium">{LEGEND_ICONS[s]} {TARGET_LABELS[s]}</span>
+                        <span className="text-[10px] font-bold tabular-nums ml-1 shrink-0">{cnt}</span>
+                      </div>
+                      <div className="h-0.5 bg-muted rounded-full overflow-hidden mt-0.5">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: TARGET_COLORS[s] }} />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground ml-5 leading-tight mt-0.5">
+                    {LEGEND_ACTIONS[s]}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bounce indicator */}
+          <div className="rounded-lg bg-red-500/8 border border-red-500/20 px-2 py-1.5 text-[9px] text-red-600 dark:text-red-400">
+            🔴 Marker merah <b>memantul</b> = butuh tindakan segera
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── main component ───────────────────────────────────────────────────────────
@@ -212,6 +435,7 @@ export function BTSMap({ filter }: BTSMapProps) {
         link.setAttribute("data-leaflet-css", "1");
         document.head.appendChild(link);
       }
+      injectMarkerCSS();
       setL(mod.default || mod);
     });
   }, []);
@@ -239,30 +463,47 @@ export function BTSMap({ filter }: BTSMapProps) {
     markersLayerRef.current.forEach(m => (m as import("leaflet").Marker).remove());
     markersLayerRef.current = [];
 
+    const latLngs: [number, number][] = [];
+
     visibleMarkers.forEach((bts) => {
       const color   = TARGET_COLORS[bts.targetStatus];
       const isToday = bts.markerStatus === "today";
-      const icon    = lf.divIcon({
-        html: makeMarkerHtml(color, isToday, bts.progressPct),
-        className: "", iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14],
+      const isSelected = selectedBTS?.id === bts.id;
+
+      const icon = lf.divIcon({
+        html: makeMarkerHtml(color, isToday, bts.progressPct, bts.targetStatus, isSelected),
+        className: "",
+        iconSize: [bts.targetStatus === "not_started" ? 28 : isSelected ? 34 : 26, bts.targetStatus === "not_started" ? 28 : isSelected ? 34 : 26],
+        iconAnchor: [bts.targetStatus === "not_started" ? 14 : isSelected ? 17 : 13, bts.targetStatus === "not_started" ? 14 : isSelected ? 17 : 13],
+        popupAnchor: [0, -14],
       });
 
-      const pctStr = bts.target > 0 ? `${Math.min(bts.progressPct, 100).toFixed(0)}%` : "—";
       const marker = lf.marker([bts.latitude, bts.longitude], { icon });
-      marker.bindTooltip(`
-        <div style="font-size:11px;font-family:inherit;padding:2px 0">
-          <b>${bts.id}</b><br/>
-          ${bts.towerName ? `<span style="color:#888">${bts.towerName}</span><br/>` : ""}
-          Progress: <b style="color:${color}">${pctStr}</b>
-          (${bts.activationCount}/${bts.target || "?"})<br/>
-          ${TARGET_LABELS[bts.targetStatus]}
-        </div>`,
-        { direction: "top", offset: [0, -14], className: "leaflet-tooltip-custom" }
-      );
+
+      marker.bindTooltip(makeTooltipHtml(bts), {
+        direction: "top", offset: [0, -16],
+        className: "leaflet-tooltip-custom",
+        sticky: false,
+      });
+
       marker.on("click", () => { setSelectedBTS(bts); setSideOpen(true); });
       marker.addTo(map);
       markersLayerRef.current.push(marker);
+
+      if (bts.latitude && bts.longitude) {
+        latLngs.push([bts.latitude, bts.longitude]);
+      }
     });
+
+    // Auto-zoom to fit all visible markers (only on first load / filter change)
+    if (latLngs.length > 0 && mapInstanceRef.current) {
+      try {
+        const bounds = lf.latLngBounds(latLngs);
+        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 14, animate: true, duration: 1 });
+      } catch {
+        // ignore bounds error
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleMarkers, L]);
 
@@ -452,40 +693,8 @@ export function BTSMap({ filter }: BTSMapProps) {
 
       {/* ── LEGEND + STATS (bottom-left) ──────────────────────────────── */}
       <div className="absolute bottom-20 md:bottom-5 left-3 z-10 flex flex-col gap-2">
-        {/* Legend */}
-        <div className="bg-card/95 backdrop-blur-sm rounded-2xl border border-border/60 shadow-md p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Target Status</p>
-          <div className="space-y-1.5">
-            {(["achieved", "on_progress", "not_started", "today", "problem", "no_target"] as TargetStatus[]).map(s => (
-              <div key={s} className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full shrink-0 border border-white/60" style={{ backgroundColor: TARGET_COLORS[s] }} />
-                <span className="text-[10px]">{TARGET_LABELS[s]}</span>
-                <span className="ml-auto text-[10px] font-bold tabular-nums">{summary[s]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Mini stats */}
-        {enriched.length > 0 && (
-          <div className="bg-card/95 backdrop-blur-sm rounded-2xl border border-border/60 shadow-md px-3 py-2 space-y-1">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-[10px] text-muted-foreground">Tampil</span>
-              <span className="text-[10px] font-bold">{visibleMarkers.length} / {enriched.length}</span>
-            </div>
-            {enriched.length > 0 && (
-              <>
-                <div className="h-px bg-border/60" />
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-[10px] text-muted-foreground">Overall</span>
-                  <span className="text-[10px] font-bold text-green-600">
-                    {((summary.achieved / Math.max(enriched.length, 1)) * 100).toFixed(0)}%
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {/* Legend — collapsible */}
+        <LegendPanel summary={summary} enrichedCount={enriched.length} visibleCount={visibleMarkers.length} />
       </div>
 
       {/* ── MAP VIEW + LOCATION (bottom-right) ──────────────────────── */}
