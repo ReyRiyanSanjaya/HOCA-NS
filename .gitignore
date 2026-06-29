@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Excel data files (sensitive)
+*.xlsx
+*.xls
+
 # vercel
 .vercel
 

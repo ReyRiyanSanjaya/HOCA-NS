@@ -287,9 +287,9 @@ export function ImportDialog({ open, target, onClose }: ImportDialogProps) {
               >
                 <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                 <p className="font-semibold text-sm">Ketuk untuk pilih file</p>
-                <p className="text-xs text-muted-foreground mt-1">CSV atau TSV · UTF-8</p>
+                <p className="text-xs text-muted-foreground mt-1">Excel (.xlsx/.xls) · CSV · TSV</p>
               </div>
-              <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" className="hidden"
+              <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
               {parseError && (
                 <div className="flex items-start gap-2 p-3.5 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
