@@ -1,25 +1,33 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Search, Layers, Navigation, X, Radio, MapPin,
-  Calendar, Users, ChevronRight, ExternalLink, Image as ImageIcon,
+  Search, Navigation, X, Radio, MapPin, Calendar, Users, ExternalLink,
+  Image as ImageIcon, Target, CheckCircle2, AlertTriangle, XCircle,
+  Activity, Layers, Filter, ChevronDown, ChevronUp, BarChart2,
+  RefreshCw, Eye, EyeOff, List,
 } from "lucide-react";
-import { Button }      from "@/components/ui/button";
-import { Input }       from "@/components/ui/input";
-import { Badge }       from "@/components/ui/badge";
-import { ScrollArea }  from "@/components/ui/scroll-area";
-import { Skeleton }    from "@/components/ui/skeleton";
+import { Button }     from "@/components/ui/button";
+import { Input }      from "@/components/ui/input";
+import { Badge }      from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton }   from "@/components/ui/skeleton";
+import { Progress }   from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchMapData, fetchBTSHistory } from "@/lib/api";
-import { MARKER_COLORS, CACHE_KEYS } from "@/lib/config";
-import { formatDateTime, formatDistance, getGoogleMapsNavigationURL } from "@/lib/utils";
-import { useFilterStore } from "@/stores/filter-store";
+import { useMasterBTS } from "@/hooks/use-master-data";
+import { CACHE_KEYS } from "@/lib/config";
+import { formatDateTime, formatDistance, getGoogleMapsNavigationURL, cn, formatNumber } from "@/lib/utils";
 import type { GlobalFilter } from "@/types";
 
-type MapView = "street" | "satellite" | "terrain";
+// ─── constants ───────────────────────────────────────────────────────────────
+const TARGET_MULTIPLIER = 3;
 
-interface MarkerData {
+// ─── target-aware marker status ──────────────────────────────────────────────
+type TargetStatus = "achieved" | "on_progress" | "not_started" | "no_target" | "problem" | "today";
+
+interface EnrichedMarker {
   id: string;
   towerName: string;
   latitude: number;
@@ -28,511 +36,675 @@ interface MarkerData {
   cluster: string;
   pm: string;
   spv: string;
-  markerStatus: string;
+  markerStatus: string;   // original (never/today/week/month/problem)
+  targetStatus: TargetStatus;
   activationCount: number;
+  target: number;
+  qtySP: number;
+  progressPct: number;
+  gap: number;
   lastActivation: string | null;
   lastPromotor: string | null;
   lastPhotoURL: string | null;
 }
 
-interface BTSMapProps {
-  filter: Partial<GlobalFilter>;
+function parseQtySP(raw: string): number {
+  if (!raw) return 0;
+  const n = parseFloat(raw.replace(/[^0-9.]/g, ""));
+  return isNaN(n) || n <= 0 ? 0 : Math.round(n);
 }
 
-export function BTSMap({ filter }: BTSMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<unknown>(null);
-  const markersRef = useRef<unknown[]>([]);
-  const [mapView, setMapView] = useState<MapView>("street");
-  const [selectedBTS, setSelectedBTS] = useState<MarkerData | null>(null);
-  const [sideOpen, setSideOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [userMarkerRef, setUserMarkerRef] = useState<unknown>(null);
-  const [L, setL] = useState<typeof import("leaflet") | null>(null);
+const TARGET_COLORS: Record<TargetStatus, string> = {
+  achieved:    "#22c55e",   // green
+  on_progress: "#eab308",   // yellow
+  not_started: "#ef4444",   // red
+  no_target:   "#6b7280",   // gray
+  today:       "#3b82f6",   // blue — activated today (override)
+  problem:     "#a855f7",   // purple
+};
 
-  const { data: mapData, isLoading } = useQuery({
+const TARGET_LABELS: Record<TargetStatus, string> = {
+  achieved:    "Achieved",
+  on_progress: "On Progress",
+  not_started: "Not Started",
+  no_target:   "No Target",
+  today:       "Aktif Hari Ini",
+  problem:     "Problem",
+};
+
+function getTargetStatus(
+  activationCount: number,
+  target: number,
+  markerStatus: string,
+): TargetStatus {
+  if (markerStatus === "problem") return "problem";
+  if (markerStatus === "today")   return "today";
+  if (target === 0) {
+    return activationCount > 0 ? "on_progress" : "not_started";
+  }
+  const pct = (activationCount / target) * 100;
+  if (pct >= 100)  return "achieved";
+  if (pct > 0)     return "on_progress";
+  return "not_started";
+}
+
+type MapView = "street" | "satellite" | "terrain";
+
+interface BTSMapProps { filter: Partial<GlobalFilter>; }
+
+// ─── marker SVG factory ──────────────────────────────────────────────────────
+function makeMarkerHtml(color: string, isToday: boolean, pct: number): string {
+  const ring = isToday ? `box-shadow:0 0 0 3px ${color}55,0 2px 10px ${color}88` : `box-shadow:0 2px 8px rgba(0,0,0,0.4)`;
+  const innerBar = pct > 0 && pct < 100
+    ? `<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.min(pct, 100) * 0.28}px;
+        background:rgba(255,255,255,0.5);border-radius:0 0 50% 50%;"></div>`
+    : "";
+  return `<div style="
+    width:26px;height:26px;border-radius:50%;
+    background-color:${color};
+    border:2.5px solid white;
+    ${ring};
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;position:relative;overflow:hidden;
+    transition:transform 0.15s;
+  ">
+    ${innerBar}
+    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" style="position:relative;z-index:1">
+      <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+      <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+      <path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"/>
+      <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+    </svg>
+  </div>`;
+}
+
+// ─── main component ───────────────────────────────────────────────────────────
+export function BTSMap({ filter }: BTSMapProps) {
+  const mapRef        = useRef<HTMLDivElement>(null);
+  const mapInstanceRef= useRef<unknown>(null);
+  const markersLayerRef = useRef<unknown[]>([]);
+  const [L, setL]     = useState<typeof import("leaflet") | null>(null);
+
+  // UI state
+  const [mapView,      setMapView]      = useState<MapView>("street");
+  const [selectedBTS,  setSelectedBTS]  = useState<EnrichedMarker | null>(null);
+  const [sideOpen,     setSideOpen]     = useState(false);
+  const [searchQuery,  setSearchQuery]  = useState("");
+  const [userMarker,   setUserMarker]   = useState<unknown>(null);
+  const [showList,     setShowList]     = useState(false);
+  const [filterStatus, setFilterStatus] = useState<"all" | TargetStatus>("all");
+  const [filterKab,    setFilterKab]    = useState("all");
+  const [filterOpen,   setFilterOpen]   = useState(false);
+  const [listSearch,   setListSearch]   = useState("");
+
+  // Data
+  const { data: mapData, isLoading, refetch } = useQuery({
     queryKey: [CACHE_KEYS.masterBTS, "map", filter],
     queryFn: () => fetchMapData(filter),
-    staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
-
+  const { data: btsData } = useMasterBTS();
   const { data: btsHistory, isLoading: historyLoading } = useQuery({
     queryKey: ["bts-history", selectedBTS?.id],
     queryFn: () => fetchBTSHistory(selectedBTS!.id),
     enabled: !!selectedBTS && sideOpen,
   });
 
-  // Load Leaflet on client
+  // Build enriched markers (merge map data with master BTS for target info)
+  const enriched = useMemo<EnrichedMarker[]>(() => {
+    if (!mapData?.markers) return [];
+    const btsMap: Record<string, { qtySPSeedingByBrands: string }> = {};
+    if (btsData) {
+      for (const b of btsData) btsMap[b.id] = b;
+    }
+    return mapData.markers.map((m) => {
+      const master = btsMap[m.id];
+      const qtySP  = master ? parseQtySP(master.qtySPSeedingByBrands) : 0;
+      const target = qtySP * TARGET_MULTIPLIER;
+      const pct    = target > 0 ? (m.activationCount / target) * 100 : 0;
+      const ts     = getTargetStatus(m.activationCount, target, m.markerStatus);
+      return {
+        ...m,
+        qtySP,
+        target,
+        targetStatus: ts,
+        progressPct: pct,
+        gap: Math.max(0, target - m.activationCount),
+      };
+    });
+  }, [mapData, btsData]);
+
+  // Summary counts
+  const summary = useMemo(() => {
+    const counts: Record<TargetStatus, number> = { achieved: 0, on_progress: 0, not_started: 0, no_target: 0, today: 0, problem: 0 };
+    for (const m of enriched) counts[m.targetStatus]++;
+    return counts;
+  }, [enriched]);
+
+  // Filter + search for list & markers
+  const visibleMarkers = useMemo(() => {
+    let list = enriched;
+    if (filterStatus !== "all") list = list.filter(m => m.targetStatus === filterStatus);
+    if (filterKab !== "all")    list = list.filter(m => m.kabupaten === filterKab);
+    return list;
+  }, [enriched, filterStatus, filterKab]);
+
+  const filteredList = useMemo(() => {
+    if (!listSearch.trim()) return visibleMarkers;
+    const kw = listSearch.toLowerCase();
+    return visibleMarkers.filter(m =>
+      m.id.toLowerCase().includes(kw) ||
+      m.towerName.toLowerCase().includes(kw) ||
+      m.kabupaten.toLowerCase().includes(kw)
+    );
+  }, [visibleMarkers, listSearch]);
+
+  const kabOptions = useMemo(() => [...new Set(enriched.map(m => m.kabupaten).filter(Boolean))].sort(), [enriched]);
+
+  // Load Leaflet
   useEffect(() => {
-    import("leaflet").then((leaflet) => {
-      // Inject Leaflet CSS if not already present
-      if (!document.querySelector('link[data-leaflet-css]')) {
+    import("leaflet").then((mod) => {
+      if (!document.querySelector("link[data-leaflet-css]")) {
         const link = document.createElement("link");
         link.rel = "stylesheet";
         link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
         link.setAttribute("data-leaflet-css", "1");
         document.head.appendChild(link);
       }
-      setL(leaflet.default || leaflet);
+      setL(mod.default || mod);
     });
   }, []);
 
-  // Initialize map
+  // Init map
   useEffect(() => {
     if (!L || !mapRef.current || mapInstanceRef.current) return;
-
-    const leafletL = L as typeof import("leaflet");
-
-    const map = leafletL.map(mapRef.current, {
-      center: [-2.5489, 118.0149],
-      zoom: 5,
-      zoomControl: false,
-    });
-
-    leafletL.control.zoom({ position: "bottomright" }).addTo(map);
-
-    const streetLayer = leafletL.tileLayer(
-      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      { attribution: "© OpenStreetMap contributors", maxZoom: 19 }
-    );
-
-    streetLayer.addTo(map);
+    const lf = L as typeof import("leaflet");
+    const map = lf.map(mapRef.current, { center: [-2.5489, 118.0149], zoom: 5, zoomControl: false });
+    lf.control.zoom({ position: "bottomright" }).addTo(map);
+    lf.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap", maxZoom: 19,
+    }).addTo(map);
     (mapInstanceRef as React.MutableRefObject<unknown>).current = map;
-
-    return () => {
-      map.remove();
-      (mapInstanceRef as React.MutableRefObject<unknown>).current = null;
-    };
+    return () => { map.remove(); (mapInstanceRef as React.MutableRefObject<unknown>).current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [L]);
 
-  // Update markers
+  // Render markers
   useEffect(() => {
-    if (!mapInstanceRef.current || !mapData?.markers || !L) return;
-
-    const leafletL = L as typeof import("leaflet");
+    if (!mapInstanceRef.current || !L || !visibleMarkers.length) return;
+    const lf  = L as typeof import("leaflet");
     const map = mapInstanceRef.current as import("leaflet").Map;
 
-    // Clear existing markers
-    markersRef.current.forEach((m) => {
-      (m as import("leaflet").Marker).remove();
-    });
-    markersRef.current = [];
+    markersLayerRef.current.forEach(m => (m as import("leaflet").Marker).remove());
+    markersLayerRef.current = [];
 
-    const markers = mapData.markers;
-    if (!markers.length) return;
+    visibleMarkers.forEach((bts) => {
+      const color   = TARGET_COLORS[bts.targetStatus];
+      const isToday = bts.markerStatus === "today";
+      const icon    = lf.divIcon({
+        html: makeMarkerHtml(color, isToday, bts.progressPct),
+        className: "", iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14],
+      });
 
-    markers.forEach((bts) => {
-      const color = MARKER_COLORS[bts.markerStatus as keyof typeof MARKER_COLORS] || MARKER_COLORS.never;
-
-      const icon = leafletL.divIcon({
-        html: `<div style="
-          width:28px;height:28px;border-radius:50%;
-          background-color:${color};
-          border:3px solid white;
-          box-shadow:0 2px 8px rgba(0,0,0,0.4);
-          display:flex;align-items:center;justify-content:center;
-          cursor:pointer;transition:transform 0.2s;
-        ">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-            <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
-            <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
-            <path d="M12.91 4.1a15.91 15.91 0 0 1 .01 15.8"/>
-            <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
-          </svg>
+      const pctStr = bts.target > 0 ? `${Math.min(bts.progressPct, 100).toFixed(0)}%` : "—";
+      const marker = lf.marker([bts.latitude, bts.longitude], { icon });
+      marker.bindTooltip(`
+        <div style="font-size:11px;font-family:inherit;padding:2px 0">
+          <b>${bts.id}</b><br/>
+          ${bts.towerName ? `<span style="color:#888">${bts.towerName}</span><br/>` : ""}
+          Progress: <b style="color:${color}">${pctStr}</b>
+          (${bts.activationCount}/${bts.target || "?"})<br/>
+          ${TARGET_LABELS[bts.targetStatus]}
         </div>`,
-        className: "",
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        popupAnchor: [0, -14],
-      });
-
-      const marker = leafletL.marker([bts.latitude, bts.longitude], { icon });
-
-      marker.bindPopup(`
-        <div style="font-family:inherit;min-width:200px;padding:4px">
-          <strong style="font-size:13px">${bts.id}</strong>
-          <p style="font-size:11px;color:#666;margin:2px 0">${bts.towerName}</p>
-          <hr style="margin:6px 0;border:none;border-top:1px solid #eee"/>
-          <div style="font-size:11px;display:grid;grid-template-columns:1fr 1fr;gap:2px">
-            <span><b>Kabupaten:</b><br/>${bts.kabupaten}</span>
-            <span><b>Cluster:</b><br/>${bts.cluster}</span>
-            <span><b>SPV:</b><br/>${bts.spv || "-"}</span>
-            <span><b>PM:</b><br/>${bts.pm || "-"}</span>
-          </div>
-          <hr style="margin:6px 0;border:none;border-top:1px solid #eee"/>
-          <div style="font-size:11px">
-            <b>Activations:</b> ${bts.activationCount}
-            ${bts.lastActivation ? `<br/><b>Last:</b> ${bts.lastActivation}` : ""}
-            ${bts.lastPromotor ? `<br/><b>By:</b> ${bts.lastPromotor}` : ""}
-          </div>
-          <a href="${getGoogleMapsNavigationURL(bts.latitude, bts.longitude)}" 
-             target="_blank" 
-             style="display:block;margin-top:6px;text-align:center;background:#3B82F6;color:white;padding:4px 8px;border-radius:6px;text-decoration:none;font-size:11px">
-            Navigate
-          </a>
-        </div>
-      `);
-
-      marker.on("click", () => {
-        setSelectedBTS(bts);
-        setSideOpen(true);
-      });
-
+        { direction: "top", offset: [0, -14], className: "leaflet-tooltip-custom" }
+      );
+      marker.on("click", () => { setSelectedBTS(bts); setSideOpen(true); });
       marker.addTo(map);
-      markersRef.current.push(marker);
+      markersLayerRef.current.push(marker);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapData, L]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleMarkers, L]);
 
-  // Change map layer
-  const changeMapView = useCallback(
-    (view: MapView) => {
-      if (!mapInstanceRef.current || !L) return;
-      const leafletL = L as typeof import("leaflet");
-      const map = mapInstanceRef.current as import("leaflet").Map;
+  // Clear markers when none visible
+  useEffect(() => {
+    if (!mapInstanceRef.current || !L) return;
+    if (visibleMarkers.length === 0) {
+      markersLayerRef.current.forEach(m => (m as import("leaflet").Marker).remove());
+      markersLayerRef.current = [];
+    }
+  }, [visibleMarkers, L]);
 
-      map.eachLayer((layer) => {
-        if (layer instanceof leafletL.TileLayer) layer.remove();
-      });
+  // Change tile layer
+  const changeMapView = useCallback((view: MapView) => {
+    if (!mapInstanceRef.current || !L) return;
+    const lf  = L as typeof import("leaflet");
+    const map = mapInstanceRef.current as import("leaflet").Map;
+    map.eachLayer(layer => { if (layer instanceof lf.TileLayer) layer.remove(); });
+    const tiles: Record<MapView, string> = {
+      street:    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      terrain:   "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    };
+    lf.tileLayer(tiles[view], { attribution: "© Map contributors", maxZoom: 19 }).addTo(map);
+    setMapView(view);
+  }, [L]);
 
-      const tiles: Record<MapView, string> = {
-        street: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        satellite:
-          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        terrain: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-      };
-
-      leafletL.tileLayer(tiles[view], {
-        attribution: "© Map contributors",
-        maxZoom: 19,
-      }).addTo(map);
-
-      setMapView(view);
-    },
-    [L]
-  );
-
-  // Get user location
+  // User location
   const getUserLocation = useCallback(() => {
     if (!mapInstanceRef.current || !L) return;
-    const leafletL = L as typeof import("leaflet");
+    const lf  = L as typeof import("leaflet");
     const map = mapInstanceRef.current as import("leaflet").Map;
-
-    navigator.geolocation?.getCurrentPosition((pos) => {
-      const { latitude, longitude } = pos.coords;
+    navigator.geolocation?.getCurrentPosition(({ coords: { latitude, longitude } }) => {
       map.setView([latitude, longitude], 15);
-
-      if (userMarkerRef) {
-        (userMarkerRef as import("leaflet").Marker).remove();
-      }
-
-      const icon = leafletL.divIcon({
-        html: `<div style="width:16px;height:16px;border-radius:50%;background:#3B82F6;border:3px solid white;box-shadow:0 2px 8px rgba(59,130,246,0.5)"></div>`,
-        className: "",
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+      if (userMarker) (userMarker as import("leaflet").Marker).remove();
+      const icon = lf.divIcon({
+        html: `<div style="width:14px;height:14px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 0 4px #3b82f640"></div>`,
+        className: "", iconSize: [14, 14], iconAnchor: [7, 7],
       });
-
-      const m = leafletL.marker([latitude, longitude], { icon }).addTo(map);
-      setUserMarkerRef(m);
+      setUserMarker(lf.marker([latitude, longitude], { icon }).addTo(map));
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [L, userMarkerRef]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [L, userMarker]);
 
-  // Search on map
-  const handleSearch = () => {
-    if (!mapInstanceRef.current || !mapData?.markers || !searchQuery.trim()) return;
+  // Search tower
+  const handleSearch = useCallback((q?: string) => {
+    const query = (q ?? searchQuery).toLowerCase().trim();
+    if (!mapInstanceRef.current || !query) return;
     const map = mapInstanceRef.current as import("leaflet").Map;
-    const q = searchQuery.toLowerCase();
-    const found = mapData.markers.find(
-      (b) =>
-        b.id.toLowerCase().includes(q) ||
-        b.towerName.toLowerCase().includes(q) ||
-        b.kabupaten.toLowerCase().includes(q)
+    const found = enriched.find(m =>
+      m.id.toLowerCase().includes(query) ||
+      m.towerName.toLowerCase().includes(query) ||
+      m.kabupaten.toLowerCase().includes(query)
     );
     if (found) {
-      map.setView([found.latitude, found.longitude], 15);
-      setSelectedBTS(found);
-      setSideOpen(true);
+      map.setView([found.latitude, found.longitude], 16);
+      setSelectedBTS(found); setSideOpen(true);
     }
-  };
+  }, [enriched, searchQuery]);
 
-  const statusColors: Record<string, string> = {
-    never: "bg-gray-500",
-    today: "bg-green-500",
-    week: "bg-blue-500",
-    month: "bg-amber-500",
-    problem: "bg-red-500",
-  };
+  // Fly to marker from list
+  const flyTo = useCallback((m: EnrichedMarker) => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current as import("leaflet").Map;
+    map.flyTo([m.latitude, m.longitude], 16, { duration: 1 });
+    setSelectedBTS(m); setSideOpen(true); setShowList(false);
+  }, []);
 
-  const statusLabels: Record<string, string> = {
-    never: "Never Activated",
-    today: "Activated Today",
-    week: "Activated This Week",
-    month: "Activated This Month",
-    problem: "Problem",
-  };
-
+  // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
     <div className="relative w-full h-full">
-      {/* Map */}
+      {/* Map canvas */}
       <div ref={mapRef} className="w-full h-full" />
 
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-10">
-          <div className="flex items-center gap-3 bg-card rounded-xl p-4 shadow-lg">
-            <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm font-medium">Loading map data...</span>
+        <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex items-center justify-center z-20">
+          <div className="flex items-center gap-3 bg-card rounded-2xl px-5 py-3.5 shadow-xl border border-border/60">
+            <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-semibold">Memuat data peta…</span>
           </div>
         </div>
       )}
 
-      {/* Top Controls */}
-      <div className="absolute top-4 left-4 right-4 z-10 flex gap-2">
+      {/* ── TOP BAR: search + filter + layer controls ─────────────────── */}
+      <div className="absolute top-3 left-3 right-3 z-10 flex gap-2 flex-wrap">
         {/* Search */}
-        <div className="flex-1 flex gap-2">
+        <div className="flex gap-1.5 flex-1 min-w-[200px]">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search BTS on map..."
-              className="pl-9 bg-background/95 backdrop-blur-sm shadow-md"
+              placeholder="Cari Tower ID, nama, kabupaten…"
+              className="pl-9 h-9 text-xs bg-card/95 backdrop-blur-sm shadow-md border-border/60 rounded-xl"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSearch()}
             />
           </div>
-          <Button
-            variant="default"
-            size="icon"
-            onClick={handleSearch}
-            className="shadow-md shrink-0"
-          >
-            <Search className="h-4 w-4" />
+          <Button size="sm" onClick={() => handleSearch()} className="h-9 shadow-md shrink-0 text-xs px-3">
+            <Search className="h-3.5 w-3.5" />
           </Button>
         </div>
+
+        {/* Filter button */}
+        <button
+          onClick={() => setFilterOpen(v => !v)}
+          className={cn(
+            "flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold shadow-md transition-all",
+            filterOpen || filterStatus !== "all" || filterKab !== "all"
+              ? "bg-blue-500 text-white"
+              : "bg-card/95 backdrop-blur-sm border border-border/60 text-foreground hover:bg-muted"
+          )}
+        >
+          <Filter className="h-3.5 w-3.5" />
+          Filter
+          {(filterStatus !== "all" || filterKab !== "all") && (
+            <span className="bg-white/25 rounded-full px-1.5 text-[10px]">
+              {[filterStatus !== "all", filterKab !== "all"].filter(Boolean).length}
+            </span>
+          )}
+          {filterOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+
+        {/* List button */}
+        <button
+          onClick={() => setShowList(v => !v)}
+          className={cn(
+            "flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold shadow-md transition-all",
+            showList ? "bg-blue-500 text-white" : "bg-card/95 backdrop-blur-sm border border-border/60 text-foreground hover:bg-muted"
+          )}
+        >
+          <List className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">List</span>
+        </button>
+
+        {/* Refresh */}
+        <button
+          onClick={() => refetch()}
+          className="flex items-center justify-center h-9 w-9 rounded-xl bg-card/95 backdrop-blur-sm border border-border/60 shadow-md hover:bg-muted transition-all"
+          title="Refresh data"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+        </button>
       </div>
 
-      {/* Map View Controls */}
-      <div className="absolute bottom-20 md:bottom-6 right-4 z-10 flex flex-col gap-2">
-        <Button
-          variant={mapView === "street" ? "default" : "secondary"}
-          size="sm"
-          onClick={() => changeMapView("street")}
-          className="shadow-md text-xs"
-        >
-          Street
-        </Button>
-        <Button
-          variant={mapView === "satellite" ? "default" : "secondary"}
-          size="sm"
-          onClick={() => changeMapView("satellite")}
-          className="shadow-md text-xs"
-        >
-          Satellite
-        </Button>
-        <Button
-          variant={mapView === "terrain" ? "default" : "secondary"}
-          size="sm"
-          onClick={() => changeMapView("terrain")}
-          className="shadow-md text-xs"
-        >
-          Terrain
-        </Button>
-        <Button
-          variant="secondary"
-          size="icon"
-          onClick={getUserLocation}
-          className="shadow-md"
-          aria-label="My location"
-        >
-          <Navigation className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Legend */}
-      <div className="absolute bottom-20 md:bottom-6 left-4 z-10">
-        <div className="bg-background/95 backdrop-blur-sm rounded-xl p-3 shadow-md space-y-1.5">
-          <p className="text-xs font-semibold mb-2">Legend</p>
-          {Object.entries(statusLabels).map(([key, label]) => (
-            <div key={key} className="flex items-center gap-2">
-              <div className={`h-3 w-3 rounded-full ${statusColors[key]}`} />
-              <span className="text-xs">{label}</span>
+      {/* ── FILTER PANEL ────────────────────────────────────────────────── */}
+      {filterOpen && (
+        <div className="absolute top-16 left-3 z-10 bg-card/97 backdrop-blur-md rounded-2xl border border-border/60 shadow-xl p-3 w-72 animate-fade-in">
+          <p className="text-xs font-bold mb-2 text-muted-foreground uppercase tracking-wide">Filter Marker</p>
+          <div className="space-y-2">
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1">Status Target</p>
+              <Select value={filterStatus} onValueChange={v => setFilterStatus(v as typeof filterStatus)}>
+                <SelectTrigger className="h-8 text-xs rounded-xl border-border/60"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Status</SelectItem>
+                  <SelectItem value="achieved">✅ Achieved</SelectItem>
+                  <SelectItem value="on_progress">🟡 On Progress</SelectItem>
+                  <SelectItem value="not_started">🔴 Not Started</SelectItem>
+                  <SelectItem value="today">🔵 Aktif Hari Ini</SelectItem>
+                  <SelectItem value="problem">🟣 Problem</SelectItem>
+                  <SelectItem value="no_target">⬜ No Target</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Stats badge */}
-      {mapData && (
-        <div className="absolute top-20 left-4 z-10">
-          <div className="bg-background/95 backdrop-blur-sm rounded-xl px-3 py-2 shadow-md">
-            <p className="text-xs font-medium">
-              {mapData.markers.length} BTS towers
-            </p>
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1">Kabupaten</p>
+              <Select value={filterKab} onValueChange={setFilterKab}>
+                <SelectTrigger className="h-8 text-xs rounded-xl border-border/60"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Kabupaten</SelectItem>
+                  {kabOptions.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {(filterStatus !== "all" || filterKab !== "all") && (
+              <button
+                onClick={() => { setFilterStatus("all"); setFilterKab("all"); }}
+                className="text-xs text-red-500 hover:text-red-600 underline underline-offset-2"
+              >
+                Reset filter
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* BTS Side Panel */}
-      {sideOpen && selectedBTS && (
-        <div className="absolute top-0 right-0 bottom-0 w-full md:w-96 bg-background/97 backdrop-blur-lg border-l border-border z-20 flex flex-col shadow-2xl animate-fade-in">
-          {/* Panel Header */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <div className="flex items-center gap-2 min-w-0">
-              <Radio className="h-5 w-5 text-primary shrink-0" />
-              <div className="min-w-0">
-                <p className="font-semibold truncate">{selectedBTS.id}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {selectedBTS.towerName}
-                </p>
+      {/* ── LEGEND + STATS (bottom-left) ──────────────────────────────── */}
+      <div className="absolute bottom-20 md:bottom-5 left-3 z-10 flex flex-col gap-2">
+        {/* Legend */}
+        <div className="bg-card/95 backdrop-blur-sm rounded-2xl border border-border/60 shadow-md p-3">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-2">Target Status</p>
+          <div className="space-y-1.5">
+            {(["achieved", "on_progress", "not_started", "today", "problem", "no_target"] as TargetStatus[]).map(s => (
+              <div key={s} className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full shrink-0 border border-white/60" style={{ backgroundColor: TARGET_COLORS[s] }} />
+                <span className="text-[10px]">{TARGET_LABELS[s]}</span>
+                <span className="ml-auto text-[10px] font-bold tabular-nums">{summary[s]}</span>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Mini stats */}
+        {enriched.length > 0 && (
+          <div className="bg-card/95 backdrop-blur-sm rounded-2xl border border-border/60 shadow-md px-3 py-2 space-y-1">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-[10px] text-muted-foreground">Tampil</span>
+              <span className="text-[10px] font-bold">{visibleMarkers.length} / {enriched.length}</span>
             </div>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setSideOpen(false)}
-            >
+            {enriched.length > 0 && (
+              <>
+                <div className="h-px bg-border/60" />
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[10px] text-muted-foreground">Overall</span>
+                  <span className="text-[10px] font-bold text-green-600">
+                    {((summary.achieved / Math.max(enriched.length, 1)) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── MAP VIEW + LOCATION (bottom-right) ──────────────────────── */}
+      <div className="absolute bottom-20 md:bottom-5 right-3 z-10 flex flex-col gap-1.5">
+        {(["street", "satellite", "terrain"] as MapView[]).map(v => (
+          <button key={v} onClick={() => changeMapView(v)}
+            className={cn(
+              "h-8 px-3 rounded-xl text-[10px] font-semibold shadow-md transition-all capitalize",
+              mapView === v ? "bg-blue-500 text-white" : "bg-card/95 backdrop-blur-sm border border-border/60 hover:bg-muted"
+            )}
+          >
+            {v === "street" ? "Street" : v === "satellite" ? "Satellite" : "Terrain"}
+          </button>
+        ))}
+        <button onClick={getUserLocation}
+          className="h-8 w-8 self-end flex items-center justify-center rounded-xl bg-card/95 backdrop-blur-sm border border-border/60 shadow-md hover:bg-muted transition-all">
+          <Navigation className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* ── LIST PANEL (slide from left) ────────────────────────────── */}
+      {showList && (
+        <div className="absolute top-0 left-0 bottom-0 w-80 bg-card/97 backdrop-blur-xl border-r border-border/60 shadow-2xl z-20 flex flex-col animate-fade-in">
+          <div className="p-3 border-b border-border/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold">Daftar Tower</p>
+              <button onClick={() => setShowList(false)} className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                className="w-full pl-8 pr-3 h-8 text-xs rounded-xl bg-muted/60 border border-border/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="Cari tower…"
+                value={listSearch}
+                onChange={e => setListSearch(e.target.value)}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">{filteredList.length} tower</p>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-2 space-y-1">
+              {filteredList.map(m => {
+                const color = TARGET_COLORS[m.targetStatus];
+                return (
+                  <button key={m.id} onClick={() => flyTo(m)}
+                    className="w-full text-left rounded-xl px-3 py-2.5 hover:bg-muted/60 transition-colors flex items-center gap-2.5 group">
+                    <div className="h-3 w-3 rounded-full shrink-0 border border-white/50 shadow-sm" style={{ backgroundColor: color }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold truncate">{m.id}</p>
+                      {m.towerName && <p className="text-[10px] text-muted-foreground truncate">{m.towerName}</p>}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {m.target > 0 && (
+                          <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(m.progressPct, 100)}%`, backgroundColor: color }} />
+                          </div>
+                        )}
+                        <span className="text-[9px] tabular-nums text-muted-foreground shrink-0">
+                          {m.activationCount}/{m.target || "?"}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* ── BTS DETAIL PANEL (right) ─────────────────────────────────── */}
+      {sideOpen && selectedBTS && (
+        <div className="absolute top-0 right-0 bottom-0 w-full md:w-[380px] bg-card/97 backdrop-blur-xl border-l border-border/60 shadow-2xl z-20 flex flex-col animate-fade-in">
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border/40 shrink-0">
+            <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: `${TARGET_COLORS[selectedBTS.targetStatus]}20` }}>
+              <Radio className="h-4 w-4" style={{ color: TARGET_COLORS[selectedBTS.targetStatus] }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm truncate">{selectedBTS.id}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{selectedBTS.towerName || "—"}</p>
+            </div>
+            <button onClick={() => setSideOpen(false)}
+              className="h-8 w-8 flex items-center justify-center rounded-xl hover:bg-muted transition-colors shrink-0">
               <X className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
 
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-4">
-              {/* BTS Info */}
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">Kabupaten</p>
-                  <p className="font-semibold mt-0.5">{selectedBTS.kabupaten}</p>
-                </div>
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">Cluster</p>
-                  <p className="font-semibold mt-0.5">{selectedBTS.cluster}</p>
-                </div>
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">PM</p>
-                  <p className="font-semibold mt-0.5">{selectedBTS.pm || "-"}</p>
-                </div>
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground">SPV</p>
-                  <p className="font-semibold mt-0.5">{selectedBTS.spv || "-"}</p>
-                </div>
-              </div>
 
-              {/* Activation Stats */}
-              <div className="flex items-center gap-3 bg-primary/5 rounded-xl p-3 border border-primary/10">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-primary">
-                    {selectedBTS.activationCount}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Activations</p>
-                </div>
-                <div className="flex-1 min-w-0">
-                  {selectedBTS.lastActivation && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Calendar className="h-3 w-3 shrink-0" />
-                      {formatDateTime(selectedBTS.lastActivation)}
-                    </p>
-                  )}
-                  {selectedBTS.lastPromotor && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                      <Users className="h-3 w-3 shrink-0" />
-                      {selectedBTS.lastPromotor}
-                    </p>
-                  )}
-                  <Badge
-                    variant={
-                      selectedBTS.markerStatus === "today"
-                        ? "success"
-                        : selectedBTS.markerStatus === "never"
-                        ? "secondary"
-                        : "info"
-                    }
-                    className="mt-1 text-xs"
-                  >
-                    {statusLabels[selectedBTS.markerStatus] || selectedBTS.markerStatus}
+              {/* Target Progress */}
+              <div className="rounded-2xl border p-3 space-y-2"
+                style={{ borderColor: `${TARGET_COLORS[selectedBTS.targetStatus]}40`, backgroundColor: `${TARGET_COLORS[selectedBTS.targetStatus]}08` }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4" style={{ color: TARGET_COLORS[selectedBTS.targetStatus] }} />
+                    <span className="text-xs font-semibold">Target Progress</span>
+                  </div>
+                  <Badge className="text-[10px] border-0"
+                    style={{ backgroundColor: `${TARGET_COLORS[selectedBTS.targetStatus]}20`, color: TARGET_COLORS[selectedBTS.targetStatus] }}>
+                    {TARGET_LABELS[selectedBTS.targetStatus]}
                   </Badge>
                 </div>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-2xl font-black" style={{ color: TARGET_COLORS[selectedBTS.targetStatus] }}>
+                      {selectedBTS.target > 0 ? `${Math.min(selectedBTS.progressPct, 100).toFixed(0)}%` : `${selectedBTS.activationCount}`}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {selectedBTS.activationCount} aktivasi / {selectedBTS.target > 0 ? `${selectedBTS.target} target` : "no target"}
+                    </p>
+                  </div>
+                  {selectedBTS.target > 0 && selectedBTS.gap > 0 && (
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-red-500">-{formatNumber(selectedBTS.gap)}</p>
+                      <p className="text-[10px] text-muted-foreground">kurang</p>
+                    </div>
+                  )}
+                </div>
+                {selectedBTS.target > 0 && (
+                  <Progress value={Math.min(selectedBTS.progressPct, 100)} className="h-2" />
+                )}
+                {selectedBTS.qtySP > 0 && (
+                  <p className="text-[10px] text-muted-foreground">Qty SP: {selectedBTS.qtySP} × {TARGET_MULTIPLIER} = {selectedBTS.target}</p>
+                )}
               </div>
 
-              {/* Last Photo */}
-              {selectedBTS.lastPhotoURL && (
-                <div>
-                  <p className="text-xs font-semibold mb-2 flex items-center gap-1">
-                    <ImageIcon className="h-3 w-3" /> Last Photo
-                  </p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={selectedBTS.lastPhotoURL}
-                    alt="Last activation photo"
-                    className="w-full h-40 object-cover rounded-xl border"
-                  />
+              {/* Meta grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "Kabupaten", value: selectedBTS.kabupaten || "—" },
+                  { label: "Cluster",   value: selectedBTS.cluster   || "—" },
+                  { label: "PM",        value: selectedBTS.pm        || "—" },
+                  { label: "SPV",       value: selectedBTS.spv       || "—" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded-xl bg-muted/40 p-2.5">
+                    <p className="text-[10px] text-muted-foreground">{label}</p>
+                    <p className="text-xs font-semibold mt-0.5 truncate">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Last activation */}
+              {selectedBTS.lastActivation && (
+                <div className="rounded-xl bg-muted/30 px-3 py-2.5 space-y-1.5">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Aktivasi Terakhir</p>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span>{formatDateTime(selectedBTS.lastActivation)}</span>
+                  </div>
+                  {selectedBTS.lastPromotor && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span>{selectedBTS.lastPromotor}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Navigate Button */}
-              <a
-                href={getGoogleMapsNavigationURL(
-                  selectedBTS.latitude,
-                  selectedBTS.longitude
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Button variant="default" className="w-full gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Navigate to BTS
+              {/* Last photo */}
+              {selectedBTS.lastPhotoURL && (
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
+                    <ImageIcon className="h-3 w-3" />Foto Terakhir
+                  </p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={selectedBTS.lastPhotoURL} alt="Last activation"
+                    className="w-full h-40 object-cover rounded-xl border border-border/60" />
+                </div>
+              )}
+
+              {/* Navigate button */}
+              <a href={getGoogleMapsNavigationURL(selectedBTS.latitude, selectedBTS.longitude)}
+                target="_blank" rel="noopener noreferrer">
+                <Button className="w-full gap-2 h-9 text-xs">
+                  <MapPin className="h-3.5 w-3.5" />
+                  Navigasi ke Tower
                   <ExternalLink className="h-3 w-3 ml-auto" />
                 </Button>
               </a>
 
-              {/* History */}
+              {/* Activation history */}
               <div>
-                <p className="text-sm font-semibold mb-2 flex items-center gap-1">
-                  <ChevronRight className="h-4 w-4" /> Activation History
+                <p className="text-xs font-bold mb-2 flex items-center gap-1.5">
+                  <BarChart2 className="h-3.5 w-3.5" />
+                  Riwayat Aktivasi
+                  {!historyLoading && btsHistory?.length ? (
+                    <span className="text-[10px] text-muted-foreground font-normal">({btsHistory.length} total)</span>
+                  ) : null}
                 </p>
                 {historyLoading ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((i) => (
-                      <Skeleton key={i} className="h-16 w-full rounded-xl" />
-                    ))}
-                  </div>
+                  <div className="space-y-2">{[0,1,2].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
                 ) : !btsHistory?.length ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No activation history
-                  </p>
+                  <div className="flex flex-col items-center py-6 text-muted-foreground gap-1">
+                    <Activity className="h-6 w-6 opacity-20" />
+                    <p className="text-xs">Belum ada riwayat aktivasi</p>
+                  </div>
                 ) : (
                   <div className="space-y-2">
-                    {btsHistory.map((tx) => (
-                      <div
-                        key={tx.id}
-                        className="bg-muted/40 rounded-xl p-3 text-xs space-y-1"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold">{tx.brand}</span>
-                          <span className="text-muted-foreground">
-                            {tx.tanggal}
+                    {btsHistory.map(tx => (
+                      <div key={tx.id} className="rounded-xl border border-border/40 bg-muted/20 px-3 py-2.5 text-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold" style={{ color: tx.brand === "XL" ? "#0066cc" : tx.brand === "Axis" ? "#ff6600" : "#cc0000" }}>
+                            {tx.brand}
                           </span>
+                          <span className="text-muted-foreground tabular-nums">{tx.tanggal} {tx.jam}</span>
                         </div>
-                        <p className="text-muted-foreground">
-                          Promotor: {tx.promotor}
-                        </p>
-                        <p className="text-muted-foreground">
-                          MDN: {tx.mdn}
-                        </p>
-                        <p className="text-muted-foreground">
-                          Distance: {formatDistance(tx.distanceFromBTS)}
-                        </p>
+                        <p className="text-muted-foreground truncate">Promotor: <span className="text-foreground font-medium">{tx.promotor}</span></p>
+                        <p className="text-muted-foreground">MDN: <span className="font-mono text-foreground">{tx.mdn}</span></p>
+                        {tx.distanceFromBTS > 0 && (
+                          <p className="text-muted-foreground">Jarak: {formatDistance(tx.distanceFromBTS)}</p>
+                        )}
                         {tx.photoURL && (
-                          <a
-                            href={tx.photoURL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary underline flex items-center gap-1"
-                          >
-                            <ImageIcon className="h-3 w-3" /> View Photo
+                          <a href={tx.photoURL} target="_blank" rel="noopener noreferrer"
+                            className="text-blue-500 hover:text-blue-600 flex items-center gap-1 mt-1 underline underline-offset-2">
+                            <ImageIcon className="h-3 w-3" /> Lihat Foto
                           </a>
                         )}
                       </div>

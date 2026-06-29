@@ -2,7 +2,6 @@
 
 import React from "react";
 import { BTSMap } from "@/components/map/bts-map";
-import { GlobalFilter } from "@/components/dashboard/global-filter";
 import { useFilterStore } from "@/stores/filter-store";
 
 export default function MapPage() {
@@ -16,11 +15,7 @@ export default function MapPage() {
       // Desktop: right of sidebar, full height
       "md:top-0 md:left-14 lg:left-56 md:bottom-0",
     ].join(" ")}>
-      {/* Filter bar */}
-      <div className="shrink-0 px-3 pt-3 pb-2 bg-background/95 backdrop-blur-sm border-b border-border/60">
-        <GlobalFilter />
-      </div>
-      {/* Map */}
+      {/* Map — filter is handled inside BTSMap itself */}
       <div className="flex-1 min-h-0">
         <BTSMap filter={filter} />
       </div>

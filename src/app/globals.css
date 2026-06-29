@@ -140,7 +140,24 @@
 /* ── Page content offset ───────────────────────────────────── */
 /* Handled by PageContainer directly */
 
-/* ── Leaflet ───────────────────────────────────────────────── */
+/* ── Leaflet custom tooltip ────────────────────────────────── */
+.leaflet-tooltip-custom {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important;
+  font-family: inherit !important;
+  padding: 6px 10px !important;
+  white-space: nowrap;
+}
+.dark .leaflet-tooltip-custom {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+}
+.leaflet-tooltip-custom::before {
+  border-top-color: hsl(var(--border)) !important;
+}
+
+
 /* CSS loaded dynamically in bts-map.tsx via <link> injection */
 .leaflet-container {
   width: 100%;
