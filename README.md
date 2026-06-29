@@ -86,7 +86,7 @@ Distance From BTS, Google Maps URL, Device, Browser, Status
 ### 3. Configure the frontend
 Create `.env.local`:
 ```
-NEXT_PUBLIC_GAS_URL=https://script.google.com/macros/s/YOUR_ID/exec
+NEXT_PUBLIC_BASE_URL=https://script.google.com/macros/s/YOUR_ID/exec
 ```
 
 ---
@@ -117,7 +117,7 @@ git push -u origin main
 - Go to [vercel.com](https://vercel.com)
 - Import your GitHub repository
 - Add environment variable:
-  - `NEXT_PUBLIC_GAS_URL` = your GAS deployment URL
+  - `NEXT_PUBLIC_BASE_URL` = your GAS deployment URL
 - Deploy
 
 ---

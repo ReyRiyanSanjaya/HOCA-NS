@@ -8,9 +8,9 @@ export const APP_CONFIG = {
   description: "XL AXIS Smart Fren New Site Seeding Operation Dashboard",
 } as const;
 
-// Google Apps Script Web App URL - update with actual deployment URL
+// Google Apps Script Web App URL
 export const GAS_BASE_URL =
-  process.env.NEXT_PUBLIC_GAS_URL ||
+  process.env.NEXT_PUBLIC_BASE_URL ||
   "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec";
 
 export const API_ENDPOINTS = {
