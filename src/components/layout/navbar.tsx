@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Map, BarChart3, PlusCircle,
   Table2, Image, Database, Settings,
   Sun, Moon, Monitor, X, Radio, Zap,
-  ShieldCheck, LogOut, LogIn,
+  ShieldCheck, LogOut, LogIn, Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -17,18 +17,19 @@ import { toast } from "sonner";
 
 // ── All nav items ──────────────────────────────────────────────────────────
 const navItems = [
-  { href: "/",          label: "Dashboard", icon: LayoutDashboard, shortLabel: "Home",    adminOnly: false },
-  { href: "/input",     label: "Input",     icon: PlusCircle,      shortLabel: "Input",   adminOnly: false },
-  { href: "/map",       label: "Peta BTS",  icon: Map,             shortLabel: "Map",     adminOnly: false },
-  { href: "/analytics", label: "Analitik",  icon: BarChart3,       shortLabel: "Analitik",adminOnly: false },
-  { href: "/report",    label: "Laporan",   icon: Table2,          shortLabel: "Laporan", adminOnly: false },
-  { href: "/gallery",   label: "Galeri",    icon: Image,           shortLabel: "Galeri",  adminOnly: false },
-  { href: "/master",    label: "Master",    icon: Database,        shortLabel: "Master",  adminOnly: true  },
-  { href: "/settings",  label: "Pengaturan",icon: Settings,        shortLabel: "Setting", adminOnly: true  },
+  { href: "/",                label: "Dashboard",      icon: LayoutDashboard, shortLabel: "Home",     adminOnly: false },
+  { href: "/input",           label: "Input",          icon: PlusCircle,      shortLabel: "Input",    adminOnly: false },
+  { href: "/map",             label: "Peta BTS",       icon: Map,             shortLabel: "Map",      adminOnly: false },
+  { href: "/analytics",       label: "Analitik",       icon: BarChart3,       shortLabel: "Analitik", adminOnly: false },
+  { href: "/tower-analysis",  label: "Target Tower",   icon: Target,          shortLabel: "Target",   adminOnly: false },
+  { href: "/report",          label: "Laporan",        icon: Table2,          shortLabel: "Laporan",  adminOnly: false },
+  { href: "/gallery",         label: "Galeri",         icon: Image,           shortLabel: "Galeri",   adminOnly: false },
+  { href: "/master",          label: "Master",         icon: Database,        shortLabel: "Master",   adminOnly: true  },
+  { href: "/settings",        label: "Pengaturan",     icon: Settings,        shortLabel: "Setting",  adminOnly: true  },
 ];
 
-// Mobile bottom bar shows first 4 public items
-const BOTTOM_ITEMS = navItems.filter((n) => !n.adminOnly).slice(0, 4);
+// Mobile bottom bar shows first 5 public items
+const BOTTOM_ITEMS = navItems.filter((n) => !n.adminOnly).slice(0, 5);
 
 export function Navbar() {
   const pathname   = usePathname();
@@ -220,7 +221,7 @@ export function Navbar() {
         "shadow-[0_-4px_24px_rgba(0,0,0,0.08)]",
         "safe-bottom"
       )}>
-        <div className="grid grid-cols-4 h-16">
+        <div className="grid grid-cols-5 h-16">
           {BOTTOM_ITEMS.map(({ href, shortLabel, icon: Icon }) => {
             const active = pathname === href;
             return (
