@@ -269,3 +269,27 @@ export interface OfflineQueueItem {
   };
   retryCount: number;
 }
+
+// ============================================================
+// IMPORT TYPES
+// ============================================================
+
+export type ImportTarget = "bts" | "promotor" | "spv";
+
+export interface ImportPreview {
+  target: ImportTarget;
+  headers: string[];
+  rows: Record<string, string>[];
+  total: number;
+  mapped: number; // rows with required fields filled
+  errors: string[];
+}
+
+export interface ImportResponse {
+  success: boolean;
+  inserted: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+  message: string;
+}

@@ -170,3 +170,24 @@ export async function fetchBTSHistory(idBTS: string): Promise<Transaction[]> {
   if (data.success) return data.data;
   throw new Error(data.error || "Failed to fetch BTS History");
 }
+
+// ============================================================
+// IMPORT APIs
+// ============================================================
+
+import type { ImportResponse, ImportTarget } from "@/types";
+
+export async function importMasterData(
+  target: ImportTarget,
+  rows: Record<string, string>[],
+  mode: "append" | "replace" = "append"
+): Promise<ImportResponse> {
+  const params = new URLSearchParams({ action: "import" });
+  const { data } = await apiClient.post(
+    `${GAS_BASE_URL}?${params}`,
+    JSON.stringify({ target, rows, mode }),
+    { headers: { "Content-Type": "text/plain" } } // GAS reads postData.contents for JSON
+  );
+  if (data.success !== undefined) return data;
+  throw new Error(data.error || "Import failed");
+}

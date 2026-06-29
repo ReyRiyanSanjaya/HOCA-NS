@@ -54,11 +54,9 @@ function doGet(e) {
 // ============================================================
 function doPost(e) {
   try {
-    var params = (e && e.parameter) ? e.parameter : {};
-    var action = params.action || 'transaction';
-    if (action === 'transaction') {
-      return postTransaction(e);
-    }
+    var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'transaction';
+    if (action === 'transaction') return postTransaction(e);
+    if (action === 'import')     return importMasterData(e);
     return jsonResponse({ success: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return jsonResponse({ success: false, error: err.toString() });
@@ -589,4 +587,163 @@ function getMapData(e) {
   });
 
   return jsonResponse({ success: true, data: { markers: markers } });
+}
+
+// ============================================================
+// IMPORT MASTER DATA
+// ============================================================
+function importMasterData(e) {
+  // Frontend sends JSON in postData.contents (Content-Type: text/plain)
+  var raw = (e && e.postData && e.postData.contents) ? e.postData.contents : '{}';
+  var payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch (err) {
+    return jsonResponse({ success: false, error: 'Invalid JSON payload: ' + err.toString() });
+  }
+
+  var target = payload.target || '';  // 'bts' | 'promotor' | 'spv'
+  var rows   = payload.rows   || [];  // array of objects
+  var mode   = payload.mode   || 'append'; // 'append' | 'replace'
+
+  if (!rows.length) {
+    return jsonResponse({ success: false, error: 'Tidak ada data untuk diimpor.' });
+  }
+
+  var sheetName;
+  var keyCol;       // column used as unique key for upsert
+  var requiredCols;
+  var headerRow;
+
+  if (target === 'bts') {
+    sheetName    = SHEET_MASTER_BTS;
+    keyCol       = 'ID BTS';
+    requiredCols = ['ID BTS', 'Tower Name', 'Latitude', 'Longitude', 'Kabupaten'];
+    headerRow    = ['ID BTS','Tower Name','Latitude','Longitude','Kabupaten','Kecamatan',
+                    'Kelurahan','Cluster XL','XL','SPM','SPV','Region','Branch',
+                    'New Tower OA Date','Qty SP Seeding by Brand(s)','Status Tower','Priority'];
+
+  } else if (target === 'promotor') {
+    sheetName    = SHEET_MASTER_PROMOTOR;
+    keyCol       = 'Nama Promotor';
+    requiredCols = ['Nama Promotor'];
+    headerRow    = ['Nama Promotor','SPV','Area','Status'];
+
+  } else if (target === 'spv') {
+    sheetName    = SHEET_MASTER_SPV;
+    keyCol       = 'Nama SPV';
+    requiredCols = ['Nama SPV'];
+    headerRow    = ['Nama SPV','Area'];
+
+  } else {
+    return jsonResponse({ success: false, error: 'Target tidak valid: ' + target });
+  }
+
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(sheetName);
+
+  // Create sheet if missing
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+
+  var inserted = 0, updated = 0, skipped = 0;
+  var errors   = [];
+
+  if (mode === 'replace') {
+    // Clear everything and rewrite
+    sheet.clearContents();
+    sheet.appendRow(headerRow);
+
+    rows.forEach(function(row, idx) {
+      var missing = requiredCols.filter(function(c) {
+        return !row[c] || String(row[c]).trim() === '';
+      });
+      if (missing.length > 0) {
+        skipped++;
+        if (errors.length < 5) errors.push('Row ' + (idx + 2) + ': missing ' + missing.join(', '));
+        return;
+      }
+      sheet.appendRow(headerRow.map(function(h) { return row[h] !== undefined ? row[h] : ''; }));
+      inserted++;
+    });
+
+    // Invalidate BTS cache
+    _btsCache = null;
+    return jsonResponse({
+      success: true,
+      inserted: inserted,
+      updated: 0,
+      skipped: skipped,
+      errors: errors,
+      message: 'Replace selesai: ' + inserted + ' baris ditulis.'
+    });
+  }
+
+  // ── APPEND / UPSERT mode ──────────────────────────────────────────────
+  // Build existing key → row-index map
+  var existingData = sheet.getDataRange().getValues();
+  var headers;
+  var keyIndex = -1;
+  var existingKeys = {}; // key → 1-based row number in sheet
+
+  if (existingData.length > 0) {
+    headers  = existingData[0].map(function(h) { return h ? h.toString().trim() : ''; });
+    keyIndex = headers.indexOf(keyCol);
+    for (var r = 1; r < existingData.length; r++) {
+      var k = existingData[r][keyIndex] !== undefined ? String(existingData[r][keyIndex]).trim() : '';
+      if (k) existingKeys[k] = r + 1; // sheet row number (1-based, +1 for header)
+    }
+  } else {
+    // Sheet is empty — write header first
+    sheet.appendRow(headerRow);
+    headers  = headerRow;
+    keyIndex = headerRow.indexOf(keyCol);
+  }
+
+  // Ensure header columns match
+  if (existingData.length === 0 || keyIndex === -1) {
+    // Re-read after header write
+    existingData = sheet.getDataRange().getValues();
+    headers      = existingData[0].map(function(h) { return h ? h.toString().trim() : ''; });
+    keyIndex     = headers.indexOf(keyCol);
+  }
+
+  rows.forEach(function(row, idx) {
+    var missing = requiredCols.filter(function(c) {
+      return !row[c] || String(row[c]).trim() === '';
+    });
+    if (missing.length > 0) {
+      skipped++;
+      if (errors.length < 5) errors.push('Row ' + (idx + 2) + ': missing ' + missing.join(', '));
+      return;
+    }
+
+    var keyVal = String(row[keyCol]).trim();
+    var newRow = headerRow.map(function(h) { return row[h] !== undefined ? row[h] : ''; });
+
+    if (existingKeys[keyVal]) {
+      // Update existing row
+      var sheetRow = existingKeys[keyVal];
+      sheet.getRange(sheetRow, 1, 1, headerRow.length).setValues([newRow]);
+      updated++;
+    } else {
+      // Append new row
+      sheet.appendRow(newRow);
+      existingKeys[keyVal] = sheet.getLastRow();
+      inserted++;
+    }
+  });
+
+  // Invalidate cache
+  _btsCache = null;
+
+  return jsonResponse({
+    success: true,
+    inserted: inserted,
+    updated: updated,
+    skipped: skipped,
+    errors: errors,
+    message: inserted + ' baris ditambah, ' + updated + ' diperbarui, ' + skipped + ' dilewati.'
+  });
 }
