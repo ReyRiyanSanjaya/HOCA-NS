@@ -107,8 +107,8 @@ function FormSection({ step, icon: Icon, title, subtitle, gradient, children, do
 export default function InputPage() {
   const queryClient = useQueryClient();
   const { data: btsData = [], isLoading: btsLoading } = useMasterBTS();
-  const { data: promotorData = [] } = useMasterPromotor();
-  const { data: spvData = [] }      = useMasterSPV();
+  const { data: promotorData = [], isLoading: promotorLoading } = useMasterPromotor();
+  const { data: spvData = [],      isLoading: spvLoading }      = useMasterSPV();
 
   const [selectedBTS, setSelectedBTS] = useState<MasterBTS | null>(null);
   const [btsError,    setBtsError]    = useState("");
@@ -260,6 +260,7 @@ export default function InputPage() {
                 value={supervisorValue || ""}
                 onChange={(v) => setValue("supervisor", v, { shouldValidate: true })}
                 error={errors.supervisor?.message}
+                loading={spvLoading}
                 required
               />
             </FormSection>
@@ -270,19 +271,13 @@ export default function InputPage() {
               title="ID BTS / Tower" subtitle="Cari tower target aktivasi"
               done={!!selectedBTS}
             >
-              {btsLoading ? (
-                <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
-                  <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  Memuat data BTS…
-                </div>
-              ) : (
-                <BTSSearch
-                  btsData={btsData}
-                  selectedBTS={selectedBTS}
-                  onSelect={(bts) => { setSelectedBTS(bts); if (bts) setBtsError(""); }}
-                  error={btsError}
-                />
-              )}
+              <BTSSearch
+                btsData={btsData}
+                selectedBTS={selectedBTS}
+                onSelect={(bts) => { setSelectedBTS(bts); if (bts) setBtsError(""); }}
+                error={btsError}
+                loading={btsLoading}
+              />
             </FormSection>
 
             {/* 3. Promotor */}
@@ -297,6 +292,7 @@ export default function InputPage() {
                 value={promotorValue || ""}
                 onChange={(v) => setValue("promotor", v, { shouldValidate: true })}
                 error={errors.promotor?.message}
+                loading={promotorLoading}
                 required
               />
             </FormSection>
