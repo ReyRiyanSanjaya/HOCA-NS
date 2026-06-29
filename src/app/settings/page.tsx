@@ -1,65 +1,100 @@
 "use client";
 
 import React from "react";
-import { PageContainer } from "@/components/layout/page-container";
+import { PageContainer }  from "@/components/layout/page-container";
+import { AdminGuard }     from "@/components/auth/admin-guard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Label }   from "@/components/ui/label";
+import { Input }   from "@/components/ui/input";
+import { Button }  from "@/components/ui/button";
+import { Badge }   from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useSettings } from "@/providers/settings-provider";
-import { useTheme } from "next-themes";
+import { useSettings }   from "@/providers/settings-provider";
+import { useAuth }       from "@/providers/auth-provider";
+import { useTheme }      from "next-themes";
 import { getOfflineQueue, clearOfflineQueue } from "@/lib/offline-queue";
-import { toast } from "sonner";
+import { toast }         from "sonner";
 import { GAS_BASE_URL, APP_CONFIG } from "@/lib/config";
 import {
-  Settings,
-  MapPin,
-  Palette,
-  RefreshCw,
-  Image as ImageIcon,
-  Globe,
-  Wifi,
-  Info,
-  Trash2,
+  Settings, MapPin, Palette, RefreshCw, Image as ImageIcon,
+  Globe, Wifi, Info, Trash2, LogOut, ShieldCheck,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
+  return (
+    <AdminGuard pageName="Pengaturan">
+      <SettingsContent />
+    </AdminGuard>
+  );
+}
+
+function SettingsContent() {
   const { settings, updateSettings } = useSettings();
-  const { theme, setTheme } = useTheme();
-  const offlineQueue = getOfflineQueue();
+  const { theme, setTheme }          = useTheme();
+  const { admin, logout }            = useAuth();
+  const offlineQueue                 = getOfflineQueue();
 
   return (
     <PageContainer>
       <div className="max-w-2xl mx-auto">
+
+        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
-          <Settings className="h-6 w-6 text-primary" />
+          <div className="h-10 w-10 rounded-2xl gradient-blue flex items-center justify-center shadow-lg shadow-blue-500/30">
+            <Settings className="h-5 w-5 text-white" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold">Settings</h1>
-            <p className="text-muted-foreground text-sm">Configure app preferences</p>
+            <h1 className="text-xl font-bold">Pengaturan</h1>
+            <p className="text-muted-foreground text-sm">Konfigurasi aplikasi</p>
           </div>
         </div>
 
         <div className="space-y-4">
-          {/* GPS Settings */}
+
+          {/* ── Admin Info ─────────────────────────────── */}
+          {admin && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl gradient-blue flex items-center justify-center shadow-md shadow-blue-500/25">
+                      <ShieldCheck className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">{admin.displayName}</p>
+                      <p className="text-xs text-muted-foreground">@{admin.username} · Administrator</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { logout(); toast.success("Berhasil logout"); }}
+                    className="gap-2 shrink-0 text-destructive border-destructive/30 hover:bg-destructive/10"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── GPS ──────────────────────────────────────── */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-primary" />
-                GPS Settings
+                <div className="h-7 w-7 rounded-xl gradient-green flex items-center justify-center">
+                  <MapPin className="h-3.5 w-3.5 text-white" />
+                </div>
+                GPS
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="radius">GPS Radius (meters)</Label>
+                <Label htmlFor="radius">Radius GPS (meter)</Label>
                 <Input
                   id="radius"
                   type="number"
@@ -67,196 +102,204 @@ export default function SettingsPage() {
                   max={5000}
                   value={settings.radiusGPS}
                   onChange={(e) => updateSettings({ radiusGPS: Number(e.target.value) })}
+                  className="h-11"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Activations outside this radius will be flagged
+                  Aktivasi di luar radius ini akan ditandai sebagai jauh
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Appearance */}
+          {/* ── Tampilan ─────────────────────────────────── */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Palette className="h-4 w-4 text-primary" />
-                Appearance
+                <div className="h-7 w-7 rounded-xl gradient-purple flex items-center justify-center">
+                  <Palette className="h-3.5 w-3.5 text-white" />
+                </div>
+                Tampilan
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div className="space-y-1.5">
-                <Label>Theme</Label>
-                <Select value={theme} onValueChange={setTheme}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Tema</Label>
+                {/* Theme picker cards */}
+                <div className="grid grid-cols-3 gap-2">
+                  {(["light", "dark", "system"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTheme(t)}
+                      className={cn(
+                        "py-3 rounded-xl border text-sm font-medium transition-all active:scale-95",
+                        theme === t
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 hover:bg-muted/60"
+                      )}
+                    >
+                      {t === "light" ? "☀️ Light" : t === "dark" ? "🌙 Dark" : "💻 System"}
+                    </button>
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Map Settings */}
+          {/* ── Map ──────────────────────────────────────── */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Globe className="h-4 w-4 text-primary" />
-                Map Settings
+                <div className="h-7 w-7 rounded-xl gradient-teal flex items-center justify-center">
+                  <Globe className="h-3.5 w-3.5 text-white" />
+                </div>
+                Peta
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div className="space-y-1.5">
-                <Label>Default Map View</Label>
+                <Label>Tampilan Default</Label>
                 <Select
                   value={settings.defaultMapView}
-                  onValueChange={(v) =>
-                    updateSettings({
-                      defaultMapView: v as "street" | "satellite" | "terrain",
-                    })
-                  }
+                  onValueChange={(v) => updateSettings({ defaultMapView: v as "street" | "satellite" | "terrain" })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="street">Street</SelectItem>
-                    <SelectItem value="satellite">Satellite</SelectItem>
-                    <SelectItem value="terrain">Terrain</SelectItem>
+                    <SelectItem value="street">🗺️ Street</SelectItem>
+                    <SelectItem value="satellite">🛰️ Satellite</SelectItem>
+                    <SelectItem value="terrain">🏔️ Terrain</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardContent>
           </Card>
 
-          {/* Data Settings */}
+          {/* ── Data ─────────────────────────────────────── */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 text-primary" />
-                Data Settings
+                <div className="h-7 w-7 rounded-xl gradient-blue flex items-center justify-center">
+                  <RefreshCw className="h-3.5 w-3.5 text-white" />
+                </div>
+                Data & Refresh
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div className="space-y-1.5">
-                <Label htmlFor="refresh">Dashboard Refresh Interval (seconds)</Label>
+                <Label htmlFor="refresh">Interval Refresh Dashboard (detik)</Label>
                 <Input
                   id="refresh"
                   type="number"
                   min={10}
                   max={300}
                   value={settings.refreshInterval}
-                  onChange={(e) =>
-                    updateSettings({ refreshInterval: Number(e.target.value) })
-                  }
+                  onChange={(e) => updateSettings({ refreshInterval: Number(e.target.value) })}
+                  className="h-11"
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Image Settings */}
+          {/* ── Foto ─────────────────────────────────────── */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-primary" />
-                Image Settings
+                <div className="h-7 w-7 rounded-xl gradient-pink flex items-center justify-center">
+                  <ImageIcon className="h-3.5 w-3.5 text-white" />
+                </div>
+                Kualitas Foto
               </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1.5">
-                <Label htmlFor="compress">
-                  Image Quality: {Math.round(settings.imageCompression * 100)}%
-                </Label>
-                <Input
-                  id="compress"
-                  type="range"
-                  min={30}
-                  max={100}
-                  value={Math.round(settings.imageCompression * 100)}
-                  onChange={(e) =>
-                    updateSettings({
-                      imageCompression: Number(e.target.value) / 100,
-                    })
-                  }
-                  className="h-2"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Lower quality = smaller file size
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Offline Queue */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Wifi className="h-4 w-4 text-primary" />
-                Offline Queue
-              </CardTitle>
-              <CardDescription>
-                Submissions queued when offline
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">
-                  Queued items:
-                  <Badge variant={offlineQueue.length > 0 ? "warning" : "success"} className="ml-2">
-                    {offlineQueue.length}
-                  </Badge>
+              <div className="flex justify-between items-center">
+                <Label>Kompresi</Label>
+                <span className={cn(
+                  "text-sm font-bold px-2 py-0.5 rounded-lg",
+                  settings.imageCompression >= 0.7 ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                  : settings.imageCompression >= 0.5 ? "bg-amber-500/10 text-amber-600"
+                  : "bg-red-500/10 text-red-500"
+                )}>
+                  {Math.round(settings.imageCompression * 100)}%
                 </span>
+              </div>
+              <input
+                type="range"
+                min={30}
+                max={100}
+                value={Math.round(settings.imageCompression * 100)}
+                onChange={(e) => updateSettings({ imageCompression: Number(e.target.value) / 100 })}
+                className="w-full accent-primary h-2 rounded-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>File kecil (30%)</span>
+                <span>Kualitas terbaik (100%)</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Offline Queue ─────────────────────────────── */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <div className="h-7 w-7 rounded-xl gradient-amber flex items-center justify-center">
+                  <Wifi className="h-3.5 w-3.5 text-white" />
+                </div>
+                Antrian Offline
+              </CardTitle>
+              <CardDescription>Pengiriman yang tertunda saat offline</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">Antrian:</span>
+                  <Badge variant={offlineQueue.length > 0 ? "warning" : "success"}>
+                    {offlineQueue.length} item
+                  </Badge>
+                </div>
                 {offlineQueue.length > 0 && (
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => {
-                      clearOfflineQueue();
-                      toast.success("Offline queue cleared");
-                    }}
+                    onClick={() => { clearOfflineQueue(); toast.success("Antrian dikosongkan"); }}
                     className="gap-2"
                   >
                     <Trash2 className="h-4 w-4" />
-                    Clear Queue
+                    Kosongkan
                   </Button>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* API Info */}
+          {/* ── API Info ──────────────────────────────────── */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Info className="h-4 w-4 text-primary" />
-                API Configuration
+                <div className="h-7 w-7 rounded-xl gradient-slate flex items-center justify-center">
+                  <Info className="h-3.5 w-3.5 text-white" />
+                </div>
+                API
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">GAS URL</p>
-                <code className="text-xs bg-muted px-2 py-1 rounded block break-all">
-                  {GAS_BASE_URL}
-                </code>
-              </div>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-muted-foreground">GAS URL</p>
+              <code className="text-xs bg-muted px-3 py-2 rounded-xl block break-all leading-relaxed">
+                {GAS_BASE_URL}
+              </code>
+            </CardContent>
+          </Card>
+
+          {/* ── App Info ──────────────────────────────────── */}
+          <Card>
+            <CardContent className="p-4 text-center space-y-1">
+              <p className="font-semibold">{APP_CONFIG.name}</p>
               <p className="text-xs text-muted-foreground">
-                Update NEXT_PUBLIC_GAS_URL in .env.local to point to your Google Apps Script deployment.
+                v{APP_CONFIG.version} · {APP_CONFIG.description}
               </p>
             </CardContent>
           </Card>
 
-          {/* App Info */}
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="font-semibold">{APP_CONFIG.name}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                v{APP_CONFIG.version} • {APP_CONFIG.description}
-              </p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </PageContainer>

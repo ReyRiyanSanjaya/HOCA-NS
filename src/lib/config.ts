@@ -3,7 +3,7 @@
 // ============================================================
 
 export const APP_CONFIG = {
-  name: "AXIS Seeding Dashboard",
+  name: "HCA NS Seeding Dashboard",
   version: "1.0.0",
   description: "XL AXIS SmartFren New Site Seeding Operation Dashboard",
 } as const;

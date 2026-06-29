@@ -1,5 +1,5 @@
 /**
- * AXIS Seeding Dashboard - Google Apps Script Backend
+ * HCA NS Seeding Dashboard - Google Apps Script Backend
  * Deploy as Web App: Execute as Me, Access: Anyone
  *
  * NOTE: Google Apps Script TextOutput does NOT support addHeader().

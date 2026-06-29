@@ -1,6 +1,6 @@
 {
-  "name": "AXIS Seeding Dashboard",
-  "short_name": "AXIS Seeding",
+  "name": "HCA NS Seeding Dashboard",
+  "short_name": "HCA NS Seeding",
   "description": "XL AXIS SmartFren New Site Seeding Operation Dashboard",
   "start_url": "/",
   "display": "standalone",
