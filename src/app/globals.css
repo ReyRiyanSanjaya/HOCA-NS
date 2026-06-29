@@ -141,6 +141,7 @@
 /* Handled by PageContainer directly */
 
 /* ── Leaflet ───────────────────────────────────────────────── */
+/* CSS loaded dynamically in bts-map.tsx via <link> injection */
 .leaflet-container {
   width: 100%;
   height: 100%;

@@ -353,9 +353,12 @@ function getDashboard(e) {
 
   var kabSet = {}, clSet = {}, pmSet = {};
   btsRows.forEach(function(b) {
-    if (b['Kabupaten']) kabSet[b['Kabupaten']] = true;
-    if (b['Cluster XL']) clSet[b['Cluster XL']] = true;
-    if (b['SPM'])        pmSet[b['SPM']]        = true;
+    var kab = b['Kabupaten'] || '';
+    var cl  = b['Cluster']   || b['Cluster XL'] || '';
+    var pm  = b['PM']        || b['SPM']         || '';
+    if (kab) kabSet[kab] = true;
+    if (cl)  clSet[cl]  = true;
+    if (pm)  pmSet[pm]  = true;
   });
 
   var brandDistribution = Object.keys(brandCounts).map(function(k) {
@@ -445,8 +448,8 @@ function getAnalytics(e) {
     var bts = getBTSById(r['ID BTS']);
     if (bts) {
       var k = String(bts['Kabupaten'] || 'Unknown'); kabC[k] = (kabC[k] || 0) + 1;
-      var c = String(bts['Cluster XL']|| 'Unknown'); clC[c]  = (clC[c]  || 0) + 1;
-      var m = String(bts['SPM']       || 'Unknown'); pmC[m]  = (pmC[m]  || 0) + 1;
+      var c = String(bts['Cluster']   || bts['Cluster XL'] || 'Unknown'); clC[c] = (clC[c] || 0) + 1;
+      var m = String(bts['PM']        || bts['SPM']        || 'Unknown'); pmC[m] = (pmC[m] || 0) + 1;
     }
 
     var jam  = String(r['Jam'] || '00:00:00');
@@ -521,8 +524,8 @@ function getGallery(e) {
       idBTS:        String(r['ID BTS']      || ''),
       towerName:    String(bts['Tower Name']|| ''),
       kabupaten:    String(bts['Kabupaten'] || ''),
-      cluster:      String(bts['Cluster XL']|| ''),
-      pm:           String(bts['SPM']       || ''),
+      cluster:      String(bts['Cluster']   || bts['Cluster XL'] || ''),
+      pm:           String(bts['PM']        || bts['SPM']        || ''),
       photoURL:     String(r['Photo URL']   || ''),
       latitudeUser: parseFloat(r['Latitude User'])  || 0,
       longitudeUser:parseFloat(r['Longitude User']) || 0,

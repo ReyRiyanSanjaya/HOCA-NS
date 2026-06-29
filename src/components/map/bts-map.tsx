@@ -3,23 +3,14 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Search,
-  Layers,
-  Navigation,
-  X,
-  Radio,
-  MapPin,
-  Calendar,
-  Users,
-  ChevronRight,
-  ExternalLink,
-  Image as ImageIcon,
+  Search, Layers, Navigation, X, Radio, MapPin,
+  Calendar, Users, ChevronRight, ExternalLink, Image as ImageIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button }      from "@/components/ui/button";
+import { Input }       from "@/components/ui/input";
+import { Badge }       from "@/components/ui/badge";
+import { ScrollArea }  from "@/components/ui/scroll-area";
+import { Skeleton }    from "@/components/ui/skeleton";
 import { fetchMapData, fetchBTSHistory } from "@/lib/api";
 import { MARKER_COLORS, CACHE_KEYS } from "@/lib/config";
 import { formatDateTime, formatDistance, getGoogleMapsNavigationURL } from "@/lib/utils";
@@ -75,6 +66,14 @@ export function BTSMap({ filter }: BTSMapProps) {
   // Load Leaflet on client
   useEffect(() => {
     import("leaflet").then((leaflet) => {
+      // Inject Leaflet CSS if not already present
+      if (!document.querySelector('link[data-leaflet-css]')) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        link.setAttribute("data-leaflet-css", "1");
+        document.head.appendChild(link);
+      }
       setL(leaflet.default || leaflet);
     });
   }, []);
