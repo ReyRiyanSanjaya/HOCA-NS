@@ -9,10 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAnalytics } from "@/hooks/use-dashboard";
+import { useAnalytics, useTransactions } from "@/hooks/use-dashboard";
+import { useMasterBTS } from "@/hooks/use-master-data";
 import { useFilterStore } from "@/stores/filter-store";
 import { CACHE_KEYS } from "@/lib/config";
 import { getBrandColor, formatNumber } from "@/lib/utils";
+import { TowerAnalysis } from "@/components/analytics/tower-analysis";
 import {
   AreaChart,
   Area,
@@ -72,9 +74,13 @@ export default function AnalyticsPage() {
   const { filter } = useFilterStore();
   const queryClient = useQueryClient();
   const { data, isLoading } = useAnalytics(filter);
+  const { data: btsData, isLoading: btsLoading } = useMasterBTS();
+  const { data: transactions, isLoading: txLoading } = useTransactions(filter);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: [CACHE_KEYS.analytics] });
+    queryClient.invalidateQueries({ queryKey: [CACHE_KEYS.transactions] });
+    queryClient.invalidateQueries({ queryKey: [CACHE_KEYS.masterBTS] });
   };
 
   const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"];
@@ -101,11 +107,12 @@ export default function AnalyticsPage() {
       <GlobalFilter />
 
       <Tabs defaultValue="trends" className="space-y-4">
-        <TabsList className="w-full grid grid-cols-4 h-auto">
+        <TabsList className="w-full grid grid-cols-5 h-auto">
           <TabsTrigger value="trends" className="text-xs py-2">Trends</TabsTrigger>
           <TabsTrigger value="performance" className="text-xs py-2">Performance</TabsTrigger>
           <TabsTrigger value="distribution" className="text-xs py-2">Distribution</TabsTrigger>
           <TabsTrigger value="rankings" className="text-xs py-2">Rankings</TabsTrigger>
+          <TabsTrigger value="tower" className="text-xs py-2">Tower Target</TabsTrigger>
         </TabsList>
 
         {/* TRENDS TAB */}
@@ -400,6 +407,27 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* TOWER TARGET TAB */}
+        <TabsContent value="tower" className="space-y-4 animate-fade-in">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                🎯 Analisa Target Tower
+                <span className="text-xs font-normal text-muted-foreground">
+                  Target = Qty SP Seeding × 3
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <TowerAnalysis
+                btsData={btsData}
+                transactions={transactions}
+                loading={btsLoading || txLoading}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </PageContainer>

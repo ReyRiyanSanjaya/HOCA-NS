@@ -197,7 +197,7 @@ export function KPICards({ data, loading }: KPICardsProps) {
       gradient: "gradient-fuchsia",
     },
     {
-      key: "pm",
+      key: "PM",
       title: "Total PM",
       value: data.totalPM,
       icon: User,
