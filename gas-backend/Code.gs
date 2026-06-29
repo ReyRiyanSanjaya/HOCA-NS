@@ -133,7 +133,8 @@ function getAllBTS() {
 function getBTSById(id) {
   var list = getAllBTS();
   for (var i = 0; i < list.length; i++) {
-    if (list[i]['ID BTS'] === id) return list[i];
+    // support both old 'ID BTS' and new 'Tower ID' column names
+    if (String(list[i]['Tower ID'] || list[i]['ID BTS'] || '') === String(id)) return list[i];
   }
   return null;
 }
@@ -145,23 +146,26 @@ function getMasterBTS(e) {
   var rows = getAllBTS();
   var data = rows.map(function(r) {
     return {
-      id:                   String(r['ID BTS']                    || ''),
-      towerName:            String(r['Tower Name']                || ''),
-      latitude:             parseFloat(r['Latitude'])             || 0,
-      longitude:            parseFloat(r['Longitude'])            || 0,
-      kabupaten:            String(r['Kabupaten']                 || ''),
-      kecamatan:            String(r['Kecamatan']                 || ''),
-      kelurahan:            String(r['Kelurahan']                 || ''),
-      cluster:              String(r['Cluster XL']                || ''),
-      xl:                   String(r['XL']                        || ''),
-      spm:                  String(r['SPM']                       || ''),
-      spv:                  String(r['SPV']                       || ''),
-      region:               String(r['Region']                    || ''),
-      branch:               String(r['Branch']                    || ''),
-      newTowerOADate:       r['New Tower OA Date'] ? r['New Tower OA Date'].toString() : '',
-      qtySPSeedingByBrands: String(r['Qty SP Seeding by Brand(s)']|| ''),
-      statusTower:          String(r['Status Tower']              || ''),
-      priority:             String(r['Priority']                  || '')
+      id:                   String(r['Tower ID']                   || r['ID BTS'] || ''),
+      towerName:            String(r['Tower Name']                 || ''),
+      newTowerOADate:       r['New Tower OA Date (NewTower Activated)']
+                              ? r['New Tower OA Date (NewTower Activated)'].toString()
+                              : (r['New Tower OA Date'] ? r['New Tower OA Date'].toString() : ''),
+      latitude:             parseFloat(r['Lat'] || r['Latitude'])  || 0,
+      longitude:            parseFloat(r['Long'] || r['Longitude'])|| 0,
+      cluster:              String(r['Cluster']  || r['Cluster XL'] || ''),
+      qtySPSeedingByBrands: String(r['Qty SP Seeding per BTS'] || r['Qty SP Seeding by Brand(s)'] || ''),
+      spm:                  String(r['PM']       || r['SPM']        || ''),
+      spv:                  String(r['SPV']                        || ''),
+      kabupaten:            String(r['Kabupaten']                  || ''),
+      // legacy / opsional
+      kecamatan:            String(r['Kecamatan'] || ''),
+      kelurahan:            String(r['Kelurahan'] || ''),
+      xl:                   String(r['XL']        || ''),
+      region:               String(r['Region']    || ''),
+      branch:               String(r['Branch']    || ''),
+      statusTower:          String(r['Status Tower'] || ''),
+      priority:             String(r['Priority']  || '')
     };
   });
   return jsonResponse({ success: true, data: data });
@@ -171,7 +175,7 @@ function getMasterPromotor(e) {
   var rows = sheetToObjects(getSheet(SHEET_MASTER_PROMOTOR));
   var data = rows.map(function(r) {
     return {
-      namaPromotor: String(r['Nama Promotor'] || ''),
+      namaPromotor: String(r['Nama Promotor Outstore'] || r['Nama Promotor'] || ''),
       spv:          String(r['SPV']           || ''),
       area:         String(r['Area']          || ''),
       status:       String(r['Status']        || 'Active')
@@ -553,7 +557,7 @@ function getMapData(e) {
   });
 
   var markers = btsRows.map(function(bts) {
-    var id   = String(bts['ID BTS'] || '');
+    var id   = String(bts['Tower ID'] || bts['ID BTS'] || '');
     var acts = btsActs[id] || [];
     acts.sort(function(a, b) {
       return String(b['Tanggal']).localeCompare(String(a['Tanggal']));
@@ -572,11 +576,11 @@ function getMapData(e) {
     return {
       id:              id,
       towerName:       String(bts['Tower Name'] || ''),
-      latitude:        parseFloat(bts['Latitude'])  || 0,
-      longitude:       parseFloat(bts['Longitude']) || 0,
+      latitude:        parseFloat(bts['Lat']  || bts['Latitude'])  || 0,
+      longitude:       parseFloat(bts['Long'] || bts['Longitude']) || 0,
       kabupaten:       String(bts['Kabupaten']  || ''),
-      cluster:         String(bts['Cluster XL'] || ''),
-      pm:              String(bts['SPM']         || ''),
+      cluster:         String(bts['Cluster']    || bts['Cluster XL'] || ''),
+      pm:              String(bts['PM']         || bts['SPM']        || ''),
       spv:             String(bts['SPV']         || ''),
       markerStatus:    markerStatus,
       activationCount: acts.length,
@@ -617,17 +621,21 @@ function importMasterData(e) {
 
   if (target === 'bts') {
     sheetName    = SHEET_MASTER_BTS;
-    keyCol       = 'ID BTS';
-    requiredCols = ['ID BTS', 'Tower Name', 'Latitude', 'Longitude', 'Kabupaten'];
-    headerRow    = ['ID BTS','Tower Name','Latitude','Longitude','Kabupaten','Kecamatan',
-                    'Kelurahan','Cluster XL','XL','SPM','SPV','Region','Branch',
-                    'New Tower OA Date','Qty SP Seeding by Brand(s)','Status Tower','Priority'];
+    keyCol       = 'Tower ID';
+    requiredCols = ['Tower ID', 'Tower Name', 'Lat', 'Long', 'Kabupaten'];
+    headerRow    = [
+      'Tower ID', 'Tower Name',
+      'New Tower OA Date (NewTower Activated)',
+      'Lat', 'Long', 'Cluster',
+      'Qty SP Seeding per BTS',
+      'PM', 'SPV', 'Kabupaten'
+    ];
 
   } else if (target === 'promotor') {
     sheetName    = SHEET_MASTER_PROMOTOR;
-    keyCol       = 'Nama Promotor';
-    requiredCols = ['Nama Promotor'];
-    headerRow    = ['Nama Promotor','SPV','Area','Status'];
+    keyCol       = 'Nama Promotor Outstore';
+    requiredCols = ['Nama Promotor Outstore'];
+    headerRow    = ['Nama Promotor Outstore', 'SPV', 'Area', 'Status'];
 
   } else if (target === 'spv') {
     sheetName    = SHEET_MASTER_SPV;

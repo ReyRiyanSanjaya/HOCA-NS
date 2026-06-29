@@ -1,54 +1,59 @@
 // ============================================================
-// MASTER DATA TYPES
+// MASTER BTS — kolom sesuai data asli
 // ============================================================
-
 export interface MasterBTS {
-  id: string; // Primary Key - ID BTS
-  towerName: string;
-  latitude: number;
-  longitude: number;
-  kabupaten: string;
+  id: string;              // Tower ID (Primary Key)
+  towerName: string;       // Tower Name
+  newTowerOADate: string;  // New Tower OA Date (NewTower Activated)
+  latitude: number;        // Lat
+  longitude: number;       // Long
+  cluster: string;         // Cluster
+  qtySPSeedingByBrands: string; // Qty SP Seeding per BTS
+  spm: string;             // PM
+  spv: string;             // SPV
+  kabupaten: string;       // Kabupaten
+  // optional / legacy
   kecamatan: string;
   kelurahan: string;
-  cluster: string;
   xl: string;
-  spm: string;
-  spv: string;
   region: string;
   branch: string;
-  newTowerOADate: string;
-  qtySPSeedingByBrands: string;
   statusTower: string;
   priority: string;
 }
 
+// ============================================================
+// MASTER PROMOTOR
+// ============================================================
 export interface MasterPromotor {
-  namaPromotor: string;
+  namaPromotor: string;    // Nama Promotor Outstore
   spv: string;
   area: string;
   status: string;
 }
 
+// ============================================================
+// MASTER SPV
+// ============================================================
 export interface MasterSPV {
   namaSPV: string;
   area: string;
 }
 
 // ============================================================
-// TRANSACTION TYPES
+// TRANSACTION — field sesuai form input
 // ============================================================
-
 export interface Transaction {
   id: string;
   timestamp: string;
   tanggal: string;
   jam: string;
-  supervisor: string;
-  promotor: string;
-  brand: string;
-  idBTS: string;
-  mdn: string;
-  photoURL: string;
+  supervisor: string;          // Supervisor
+  idBTS: string;               // ID BTS
+  promotor: string;            // Nama Promotor Outstore
+  brand: string;               // Brand (Smartfren/XL/Axis)
+  mdn: string;                 // MDN Aktivasi
+  photoURL: string;            // Dokumentasi
   latitudeUser: number;
   longitudeUser: number;
   distanceFromBTS: number;
@@ -60,9 +65,9 @@ export interface Transaction {
 
 export interface TransactionInput {
   supervisor: string;
+  idBTS: string;
   promotor: string;
   brand: string;
-  idBTS: string;
   mdn: string;
   photoFile: File | null;
   latitudeUser: number;
@@ -70,9 +75,8 @@ export interface TransactionInput {
 }
 
 // ============================================================
-// DASHBOARD TYPES
+// DASHBOARD
 // ============================================================
-
 export interface DashboardKPI {
   todayActivation: number;
   weeklyActivation: number;
@@ -99,39 +103,14 @@ export interface BrandCount {
 }
 
 // ============================================================
-// ANALYTICS TYPES
+// ANALYTICS
 // ============================================================
-
-export interface DailyTrend {
-  date: string;
-  count: number;
-}
-
-export interface WeeklyTrend {
-  week: string;
-  count: number;
-}
-
-export interface MonthlyTrend {
-  month: string;
-  count: number;
-}
-
-export interface PerformanceItem {
-  name: string;
-  count: number;
-  percent: number;
-}
-
-export interface HourlyActivation {
-  hour: number;
-  count: number;
-}
-
-export interface WeekdayActivation {
-  day: string;
-  count: number;
-}
+export interface DailyTrend    { date: string;  count: number; }
+export interface WeeklyTrend   { week: string;  count: number; }
+export interface MonthlyTrend  { month: string; count: number; }
+export interface PerformanceItem { name: string; count: number; percent: number; }
+export interface HourlyActivation  { hour: number; count: number; }
+export interface WeekdayActivation { day: string;  count: number; }
 
 export interface AnalyticsData {
   dailyTrend: DailyTrend[];
@@ -156,9 +135,8 @@ export interface AnalyticsData {
 }
 
 // ============================================================
-// GALLERY TYPES
+// GALLERY
 // ============================================================
-
 export interface GalleryItem {
   id: string;
   timestamp: string;
@@ -178,9 +156,8 @@ export interface GalleryItem {
 }
 
 // ============================================================
-// FILTER TYPES
+// FILTER
 // ============================================================
-
 export interface GlobalFilter {
   dateFrom: string;
   dateTo: string;
@@ -195,9 +172,8 @@ export interface GlobalFilter {
 }
 
 // ============================================================
-// API RESPONSE TYPES
+// API RESPONSES
 // ============================================================
-
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -212,9 +188,8 @@ export interface PostTransactionResponse {
 }
 
 // ============================================================
-// MAP TYPES
+// MAP
 // ============================================================
-
 export type MarkerStatus = "never" | "today" | "week" | "month" | "problem";
 
 export interface BTSMarker extends MasterBTS {
@@ -226,42 +201,39 @@ export interface BTSMarker extends MasterBTS {
 }
 
 // ============================================================
-// SETTINGS TYPES
+// SETTINGS
 // ============================================================
-
 export interface AppSettings {
-  radiusGPS: number; // meters
+  radiusGPS: number;
   defaultMapView: "street" | "satellite" | "terrain";
   theme: "light" | "dark" | "system";
-  refreshInterval: number; // seconds
-  imageCompression: number; // 0-1
+  refreshInterval: number;
+  imageCompression: number;
 }
 
 // ============================================================
-// FORM TYPES
+// FORM
 // ============================================================
-
 export interface InputFormValues {
   supervisor: string;
+  idBTS: string;
   promotor: string;
   brand: string;
-  idBTS: string;
   mdn: string;
   photo: FileList | null;
 }
 
 // ============================================================
-// OFFLINE QUEUE TYPES
+// OFFLINE QUEUE
 // ============================================================
-
 export interface OfflineQueueItem {
   id: string;
   timestamp: string;
   formData: {
     supervisor: string;
+    idBTS: string;
     promotor: string;
     brand: string;
-    idBTS: string;
     mdn: string;
     photoBase64: string;
     latitudeUser: number;
@@ -271,9 +243,8 @@ export interface OfflineQueueItem {
 }
 
 // ============================================================
-// IMPORT TYPES
+// IMPORT
 // ============================================================
-
 export type ImportTarget = "bts" | "promotor" | "spv";
 
 export interface ImportPreview {
@@ -281,7 +252,7 @@ export interface ImportPreview {
   headers: string[];
   rows: Record<string, string>[];
   total: number;
-  mapped: number; // rows with required fields filled
+  mapped: number;
   errors: string[];
 }
 

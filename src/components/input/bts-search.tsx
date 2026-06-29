@@ -125,20 +125,6 @@ export function BTSSearch({
               <span className="font-medium">{selectedBTS.qtySPSeedingByBrands || "-"}</span>
             </div>
           </div>
-          {selectedBTS.statusTower && (
-            <Badge
-              variant={
-                selectedBTS.statusTower === "Active"
-                  ? "success"
-                  : selectedBTS.statusTower === "Problem"
-                  ? "destructive"
-                  : "warning"
-              }
-              className="text-xs"
-            >
-              {selectedBTS.statusTower}
-            </Badge>
-          )}
         </div>
       ) : (
         <div className="relative">
