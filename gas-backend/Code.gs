@@ -596,46 +596,35 @@ function getMapData(e) {
 // ============================================================
 // IMPORT MASTER DATA
 // ============================================================
+// IMPORT MASTER DATA  (batch-optimised — uses setValues, not appendRow per row)
+// ============================================================
 function importMasterData(e) {
-  // Frontend sends JSON in postData.contents (Content-Type: text/plain)
   var raw = (e && e.postData && e.postData.contents) ? e.postData.contents : '{}';
   var payload;
-  try {
-    payload = JSON.parse(raw);
-  } catch (err) {
-    return jsonResponse({ success: false, error: 'Invalid JSON payload: ' + err.toString() });
-  }
+  try { payload = JSON.parse(raw); }
+  catch (err) { return jsonResponse({ success: false, error: 'Invalid JSON: ' + err.toString() }); }
 
-  var target = payload.target || '';  // 'bts' | 'promotor' | 'spv'
-  var rows   = payload.rows   || [];  // array of objects
-  var mode   = payload.mode   || 'append'; // 'append' | 'replace'
+  var target = payload.target || '';
+  var rows   = payload.rows   || [];
+  var mode   = payload.mode   || 'append';
 
-  if (!rows.length) {
-    return jsonResponse({ success: false, error: 'Tidak ada data untuk diimpor.' });
-  }
+  if (!rows.length) return jsonResponse({ success: false, error: 'Tidak ada data.' });
 
-  var sheetName;
-  var keyCol;       // column used as unique key for upsert
-  var requiredCols;
-  var headerRow;
+  // ── Schema per target ──────────────────────────────────────────────────
+  var sheetName, keyCol, requiredCols, headerRow;
 
   if (target === 'bts') {
     sheetName    = SHEET_MASTER_BTS;
     keyCol       = 'Tower ID';
-    requiredCols = ['Tower ID', 'Tower Name', 'Lat', 'Long', 'Kabupaten'];
-    headerRow    = [
-      'Tower ID', 'Tower Name',
-      'New Tower OA Date (NewTower Activated)',
-      'Lat', 'Long', 'Cluster',
-      'Qty SP Seeding per BTS',
-      'PM', 'SPV', 'Kabupaten'
-    ];
+    requiredCols = ['Tower ID', 'Lat', 'Long', 'Kabupaten'];
+    headerRow    = ['Tower ID','Tower Name','New Tower OA Date (NewTower Activated)',
+                    'Lat','Long','Cluster','Qty SP Seeding per BTS','PM','SPV','Kabupaten'];
 
   } else if (target === 'promotor') {
     sheetName    = SHEET_MASTER_PROMOTOR;
     keyCol       = 'Nama Promotor Outstore';
     requiredCols = ['Nama Promotor Outstore'];
-    headerRow    = ['Nama Promotor Outstore', 'SPV', 'Area', 'Status'];
+    headerRow    = ['Nama Promotor Outstore','SPV','Area','Status'];
 
   } else if (target === 'spv') {
     sheetName    = SHEET_MASTER_SPV;
@@ -649,109 +638,99 @@ function importMasterData(e) {
 
   var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) sheet = ss.insertSheet(sheetName);
 
-  // Create sheet if missing
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-  }
+  var inserted = 0, updated = 0, skipped = 0, errors = [];
 
-  var inserted = 0, updated = 0, skipped = 0;
-  var errors   = [];
-
-  if (mode === 'replace') {
-    // Clear everything and rewrite
-    sheet.clearContents();
-    sheet.appendRow(headerRow);
-
-    rows.forEach(function(row, idx) {
-      var missing = requiredCols.filter(function(c) {
-        return !row[c] || String(row[c]).trim() === '';
-      });
-      if (missing.length > 0) {
-        skipped++;
-        if (errors.length < 5) errors.push('Row ' + (idx + 2) + ': missing ' + missing.join(', '));
-        return;
-      }
-      sheet.appendRow(headerRow.map(function(h) { return row[h] !== undefined ? row[h] : ''; }));
-      inserted++;
-    });
-
-    // Invalidate BTS cache
-    _btsCache = null;
-    return jsonResponse({
-      success: true,
-      inserted: inserted,
-      updated: 0,
-      skipped: skipped,
-      errors: errors,
-      message: 'Replace selesai: ' + inserted + ' baris ditulis.'
-    });
-  }
-
-  // ── APPEND / UPSERT mode ──────────────────────────────────────────────
-  // Build existing key → row-index map
-  var existingData = sheet.getDataRange().getValues();
-  var headers;
-  var keyIndex = -1;
-  var existingKeys = {}; // key → 1-based row number in sheet
-
-  if (existingData.length > 0) {
-    headers  = existingData[0].map(function(h) { return h ? h.toString().trim() : ''; });
-    keyIndex = headers.indexOf(keyCol);
-    for (var r = 1; r < existingData.length; r++) {
-      var k = existingData[r][keyIndex] !== undefined ? String(existingData[r][keyIndex]).trim() : '';
-      if (k) existingKeys[k] = r + 1; // sheet row number (1-based, +1 for header)
-    }
-  } else {
-    // Sheet is empty — write header first
-    sheet.appendRow(headerRow);
-    headers  = headerRow;
-    keyIndex = headerRow.indexOf(keyCol);
-  }
-
-  // Ensure header columns match
-  if (existingData.length === 0 || keyIndex === -1) {
-    // Re-read after header write
-    existingData = sheet.getDataRange().getValues();
-    headers      = existingData[0].map(function(h) { return h ? h.toString().trim() : ''; });
-    keyIndex     = headers.indexOf(keyCol);
-  }
-
+  // ── Validate rows first ────────────────────────────────────────────────
+  var validRows = [];
   rows.forEach(function(row, idx) {
     var missing = requiredCols.filter(function(c) {
       return !row[c] || String(row[c]).trim() === '';
     });
     if (missing.length > 0) {
       skipped++;
-      if (errors.length < 5) errors.push('Row ' + (idx + 2) + ': missing ' + missing.join(', '));
-      return;
-    }
-
-    var keyVal = String(row[keyCol]).trim();
-    var newRow = headerRow.map(function(h) { return row[h] !== undefined ? row[h] : ''; });
-
-    if (existingKeys[keyVal]) {
-      // Update existing row
-      var sheetRow = existingKeys[keyVal];
-      sheet.getRange(sheetRow, 1, 1, headerRow.length).setValues([newRow]);
-      updated++;
+      if (errors.length < 5) errors.push('Baris ' + (idx + 2) + ': ' + missing.join(', ') + ' kosong');
     } else {
-      // Append new row
-      sheet.appendRow(newRow);
-      existingKeys[keyVal] = sheet.getLastRow();
-      inserted++;
+      validRows.push(row);
     }
   });
 
-  // Invalidate cache
-  _btsCache = null;
+  if (validRows.length === 0) {
+    return jsonResponse({ success: false, inserted: 0, updated: 0, skipped: skipped,
+      errors: errors, error: 'Tidak ada baris valid untuk diimpor.' });
+  }
 
+  // ── REPLACE mode: clear + bulk write ──────────────────────────────────
+  if (mode === 'replace') {
+    sheet.clearContents();
+    var writeData = [headerRow].concat(validRows.map(function(row) {
+      return headerRow.map(function(h) { return row[h] !== undefined ? String(row[h]) : ''; });
+    }));
+    sheet.getRange(1, 1, writeData.length, headerRow.length).setValues(writeData);
+    inserted = validRows.length;
+    _btsCache = null;
+    return jsonResponse({ success: true, inserted: inserted, updated: 0, skipped: skipped,
+      errors: errors, message: 'Replace selesai: ' + inserted + ' baris ditulis.' });
+  }
+
+  // ── APPEND / UPSERT mode ──────────────────────────────────────────────
+  // Read existing data once
+  var existingData = sheet.getDataRange().getValues();
+  var existingKeys = {};  // keyValue → sheetRowNumber (1-based)
+  var headers, keyIndex = -1;
+
+  if (existingData.length > 0) {
+    headers  = existingData[0].map(function(h) { return h ? h.toString().trim() : ''; });
+    keyIndex = headers.indexOf(keyCol);
+    if (keyIndex >= 0) {
+      for (var r = 1; r < existingData.length; r++) {
+        var k = String(existingData[r][keyIndex] || '').trim();
+        if (k) existingKeys[k] = r + 1;
+      }
+    }
+  } else {
+    // Empty sheet — write header first
+    sheet.getRange(1, 1, 1, headerRow.length).setValues([headerRow]);
+    keyIndex = headerRow.indexOf(keyCol);
+  }
+
+  // Separate into: rows to update (existing key) vs rows to append (new key)
+  var toUpdate = [];  // { sheetRow, values }
+  var toAppend = [];  // values[]
+
+  validRows.forEach(function(row) {
+    var keyVal = String(row[keyCol] || '').trim();
+    var newRow = headerRow.map(function(h) { return row[h] !== undefined ? String(row[h]) : ''; });
+    if (existingKeys[keyVal]) {
+      toUpdate.push({ sheetRow: existingKeys[keyVal], values: newRow });
+    } else {
+      toAppend.push(newRow);
+      // Reserve the next row number for duplicate detection within batch
+      existingKeys[keyVal] = (sheet.getLastRow() || existingData.length) + toAppend.length;
+    }
+  });
+
+  // Bulk update (each row individually, but no sheet reads in loop)
+  toUpdate.forEach(function(item) {
+    sheet.getRange(item.sheetRow, 1, 1, headerRow.length).setValues([item.values]);
+    updated++;
+  });
+
+  // Bulk append all new rows at once
+  if (toAppend.length > 0) {
+    var lastRow = sheet.getLastRow();
+    sheet.getRange(lastRow + 1, 1, toAppend.length, headerRow.length).setValues(toAppend);
+    inserted = toAppend.length;
+  }
+
+  _btsCache = null;
   return jsonResponse({
     success: true,
     inserted: inserted,
-    updated: updated,
-    skipped: skipped,
-    errors: errors,
-    message: inserted + ' baris ditambah, ' + updated + ' diperbarui, ' + skipped + ' dilewati.'
+    updated:  updated,
+    skipped:  skipped,
+    errors:   errors,
+    message:  inserted + ' baris ditambah, ' + updated + ' diperbarui, ' + skipped + ' dilewati.'
   });
 }

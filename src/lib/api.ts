@@ -177,17 +177,44 @@ export async function fetchBTSHistory(idBTS: string): Promise<Transaction[]> {
 
 import type { ImportResponse, ImportTarget } from "@/types";
 
+const BATCH_SIZE = 50; // rows per request to avoid GAS timeout
+
 export async function importMasterData(
   target: ImportTarget,
   rows: Record<string, string>[],
-  mode: "append" | "replace" = "append"
+  mode: "append" | "replace" = "append",
+  onProgress?: (done: number, total: number) => void
 ): Promise<ImportResponse> {
   const params = new URLSearchParams({ action: "import" });
-  const { data } = await apiClient.post(
-    `${GAS_BASE_URL}?${params}`,
-    JSON.stringify({ target, rows, mode }),
-    { headers: { "Content-Type": "text/plain" } } // GAS reads postData.contents for JSON
-  );
-  if (data.success !== undefined) return data;
-  throw new Error(data.error || "Import failed");
+  const url    = `${GAS_BASE_URL}?${params}`;
+
+  const total: ImportResponse = { success: true, inserted: 0, updated: 0, skipped: 0, errors: [], message: "" };
+
+  // Split into batches
+  const batches: Record<string, string>[][] = [];
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    batches.push(rows.slice(i, i + BATCH_SIZE));
+  }
+
+  for (let b = 0; b < batches.length; b++) {
+    const batchMode = b === 0 ? mode : "append"; // only first batch can replace
+    const payload   = JSON.stringify({ target, rows: batches[b], mode: batchMode });
+
+    const { data } = await apiClient.post(url, payload, {
+      headers: { "Content-Type": "text/plain" },
+      timeout: 90000, // 90s per batch
+    });
+
+    if (!data.success) throw new Error(data.errors?.[0] || data.message || "Import batch gagal");
+
+    total.inserted += data.inserted || 0;
+    total.updated  += data.updated  || 0;
+    total.skipped  += data.skipped  || 0;
+    if (data.errors?.length) total.errors.push(...data.errors);
+
+    onProgress?.(Math.min((b + 1) * BATCH_SIZE, rows.length), rows.length);
+  }
+
+  total.message = `${total.inserted} baris ditambah, ${total.updated} diperbarui, ${total.skipped} dilewati.`;
+  return total;
 }

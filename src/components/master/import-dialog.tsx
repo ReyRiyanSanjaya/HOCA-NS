@@ -20,11 +20,11 @@ const SCHEMA: Record<ImportTarget, {
   sample: string[][];
 }> = {
   bts: {
-    required: ["Tower ID", "Tower Name", "Lat", "Long", "Kabupaten"],
-    optional: ["New Tower OA Date (NewTower Activated)", "Cluster", "Qty SP Seeding per BTS", "PM", "SPV"],
+    required: ["Tower ID", "Lat", "Long", "Kabupaten"],
+    optional: ["Tower Name", "New Tower OA Date (NewTower Activated)", "Cluster", "Qty SP Seeding per BTS", "PM", "SPV"],
     sample: [
       ["Tower ID","Tower Name","New Tower OA Date (NewTower Activated)","Lat","Long","Cluster","Qty SP Seeding per BTS","PM","SPV","Kabupaten"],
-      ["BTS-001","Tower Alpha","2025-01-15","-6.2088","106.8456","JKT-A","5","PM Jakarta","SPV-01","Jakarta Selatan"],
+      ["SUM-AC-JTH-0013","Tower Alpha","2026-05-04","-6.2088","106.8456","NS-NAD","50 Pcs","AYUB HARIYONO","DOLLY AULIA","Kab. Aceh Besar"],
     ],
   },
   promotor: {
@@ -32,13 +32,18 @@ const SCHEMA: Record<ImportTarget, {
     optional: ["SPV", "Area", "Status"],
     sample: [
       ["Nama Promotor Outstore","SPV","Area","Status"],
-      ["Budi Santoso","SPV-01","Jakarta","Active"],
+      ["Budi Santoso","Ahmad Fauzi","Jakarta Selatan","Active"],
+      ["Siti Rahayu","Budi Hartono","Jawa Barat","Active"],
     ],
   },
   spv: {
     required: ["Nama SPV"],
     optional: ["Area"],
-    sample: [["Nama SPV","Area"], ["Ahmad Fauzi","Jakarta"]],
+    sample: [
+      ["Nama SPV","Area"],
+      ["Ahmad Fauzi","Jakarta Selatan"],
+      ["Budi Hartono","Jawa Barat"],
+    ],
   },
 };
 
@@ -95,18 +100,20 @@ export function ImportDialog({ open, target, onClose }: ImportDialogProps) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [step,       setStep]       = useState<Step>("auth");
-  const [password,   setPassword]   = useState("");
-  const [showPwd,    setShowPwd]    = useState(false);
-  const [authError,  setAuthError]  = useState("");
-  const [authShake,  setAuthShake]  = useState(false);
-  const [preview,    setPreview]    = useState<ImportPreview | null>(null);
-  const [parseError, setParseError] = useState("");
-  const [mode,       setMode]       = useState<"append" | "replace">("append");
+  const [step,        setStep]        = useState<Step>("auth");
+  const [password,    setPassword]    = useState("");
+  const [showPwd,     setShowPwd]     = useState(false);
+  const [authError,   setAuthError]   = useState("");
+  const [authShake,   setAuthShake]   = useState(false);
+  const [preview,     setPreview]     = useState<ImportPreview | null>(null);
+  const [parseError,  setParseError]  = useState("");
+  const [mode,        setMode]        = useState<"append" | "replace">("append");
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
 
   const reset = useCallback(() => {
     setStep("auth"); setPassword(""); setShowPwd(false);
     setAuthError(""); setPreview(null); setParseError(""); setMode("append");
+    setBatchProgress({ done: 0, total: 0 });
     if (fileRef.current) fileRef.current.value = "";
   }, []);
 
@@ -137,7 +144,12 @@ export function ImportDialog({ open, target, onClose }: ImportDialogProps) {
   };
 
   const mutation = useMutation({
-    mutationFn: () => importMasterData(target, preview!.rows, mode),
+    mutationFn: () => {
+      setBatchProgress({ done: 0, total: preview!.mapped });
+      return importMasterData(target, preview!.rows, mode, (done, total) => {
+        setBatchProgress({ done, total });
+      });
+    },
     onSuccess: (res) => {
       if (res.success) {
         toast.success("Import berhasil!", {
@@ -410,11 +422,32 @@ export function ImportDialog({ open, target, onClose }: ImportDialogProps) {
                 </div>
               </div>
               {mutation.isPending && (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground text-center">Mengirim ke Google Sheets…</p>
-                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className={cn("h-full w-1/2 rounded-full animate-pulse", gradClass)} />
+                <div className="space-y-2 animate-fade-up">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground font-medium">
+                      Mengirim ke Google Sheets…
+                    </span>
+                    <span className="font-bold text-primary">
+                      {batchProgress.done}/{batchProgress.total}
+                    </span>
                   </div>
+                  <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full transition-all duration-500", gradClass)}
+                      style={{
+                        width: batchProgress.total > 0
+                          ? `${Math.round((batchProgress.done / batchProgress.total) * 100)}%`
+                          : "15%",
+                        animation: batchProgress.total === 0 ? "pulse 1.5s ease-in-out infinite" : "none",
+                      }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    {batchProgress.total > 0
+                      ? `Batch ${Math.ceil(batchProgress.done / 50)} dari ${Math.ceil(batchProgress.total / 50)} · ${Math.round((batchProgress.done / batchProgress.total) * 100)}%`
+                      : "Memproses…"
+                    }
+                  </p>
                 </div>
               )}
             </>
