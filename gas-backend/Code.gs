@@ -402,8 +402,10 @@ function getAnalytics(e) {
     var d = String(r['Tanggal'] || '').substring(0, 10);
     if (d) dailyCounts[d] = (dailyCounts[d] || 0) + 1;
   });
+  // No slice limit — return all dates in the filtered range so the chart
+  // matches exactly what the user selected. Client can paginate/scroll if needed.
   var dailyTrend = Object.keys(dailyCounts).sort()
-    .map(function(d) { return { date: d, count: dailyCounts[d] }; }).slice(-30);
+    .map(function(d) { return { date: d, count: dailyCounts[d] }; });
 
   // Weekly trend
   var weeklyCounts = {};

@@ -190,7 +190,7 @@ export function KPICards({ data, loading }: KPICardsProps) {
       gradient: "gradient-blue",
     },
     {
-      key: "cluster",
+      key: "Cluster",
       title: "Cluster",
       value: data.totalCluster,
       icon: Layers,

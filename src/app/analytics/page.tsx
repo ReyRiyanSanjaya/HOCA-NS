@@ -92,14 +92,16 @@ function computeStats(txs: Transaction[], btsMap: Record<string,MasterBTS>): Com
       daily[date] = (daily[date]||0)+1;
       const month = date.substring(0,7);
       monthly[month] = (monthly[month]||0)+1;
-      // ISO week approx
-      const d = new Date(date);
+      // ISO 8601 week (Monday-based), matching the GAS yyyy-ww format
+      const d = new Date(date + "T12:00:00"); // noon to avoid DST edge cases
       if (!isNaN(d.getTime())) {
-        const jan4 = new Date(d.getFullYear(),0,4);
-        const startOfWeek1 = new Date(jan4);
-        startOfWeek1.setDate(jan4.getDate()-(jan4.getDay()||7)+1);
-        const wkNum = Math.floor((d.getTime()-startOfWeek1.getTime())/(7*86400000))+1;
-        const wk = `${d.getFullYear()}-W${String(wkNum).padStart(2,"0")}`;
+        // Shift to Thursday of the same week to get the correct ISO year+week
+        const thu = new Date(d);
+        thu.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 3);
+        const year = thu.getFullYear();
+        const jan4 = new Date(year, 0, 4);
+        const wkNum = Math.floor((thu.getTime() - jan4.getTime()) / (7 * 86400000)) + 1;
+        const wk = `${year}-${String(wkNum).padStart(2, "0")}`;
         weekly[wk] = (weekly[wk]||0)+1;
         wdM[d.getDay()] = (wdM[d.getDay()]||0)+1;
       }

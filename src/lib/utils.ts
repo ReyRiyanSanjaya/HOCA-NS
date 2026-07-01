@@ -78,21 +78,29 @@ export function formatDateTime(dateStr: string): string {
 }
 
 export function getTodayString(): string {
-  return new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 export function getWeekStart(): string {
   const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(now.setDate(diff)).toISOString().split("T")[0];
+  const day = now.getDay(); // 0=Sun
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  const mon = new Date(now.getFullYear(), now.getMonth(), diff);
+  const y = mon.getFullYear();
+  const m = String(mon.getMonth() + 1).padStart(2, "0");
+  const d = String(mon.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 export function getMonthStart(): string {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1)
-    .toISOString()
-    .split("T")[0];
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}-01`;
 }
 
 // ============================================================
