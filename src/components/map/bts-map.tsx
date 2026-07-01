@@ -529,7 +529,7 @@ function NotificationBell({
 
       {open && (
         <div className="absolute top-11 right-0 w-72 bg-card/97 backdrop-blur-xl
-          rounded-2xl border border-border/60 shadow-2xl z-30 overflow-hidden">
+          rounded-2xl border border-border/60 shadow-2xl z-[1030] overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/40">
             <div className="flex items-center gap-1.5">
               <Bell className="h-3.5 w-3.5 text-blue-500" />
@@ -1026,7 +1026,7 @@ export function BTSMap({ filter }: BTSMapProps) {
 
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex items-center justify-center z-20">
+        <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex items-center justify-center z-[1050]">
           <div className="flex items-center gap-3 bg-card rounded-2xl px-5 py-3.5 shadow-xl border border-border/60">
             <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <span className="text-sm font-semibold">Memuat data peta…</span>
@@ -1035,7 +1035,7 @@ export function BTSMap({ filter }: BTSMapProps) {
       )}
 
       {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
-      <div className="absolute top-3 left-3 right-3 z-10 space-y-2">
+      <div className="absolute top-3 left-3 right-3 z-[1000] space-y-2">
         {/* Row 1: search + actions */}
         <div className="flex gap-2">
           {/* Search */}
@@ -1145,7 +1145,7 @@ export function BTSMap({ filter }: BTSMapProps) {
 
       {/* ── FILTER PANEL ──────────────────────────────────────────────── */}
       {filterOpen && (
-        <div className="absolute top-28 left-3 z-10 bg-card/97 backdrop-blur-md rounded-2xl border border-border/60 shadow-xl p-3 w-72">
+        <div className="absolute top-28 left-3 z-[1010] bg-card/97 backdrop-blur-md rounded-2xl border border-border/60 shadow-xl p-3 w-72">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Filter Marker</p>
             <button onClick={() => setFilterOpen(false)}
@@ -1190,7 +1190,7 @@ export function BTSMap({ filter }: BTSMapProps) {
       )}
 
       {/* ── LEGEND (bottom-left) ──────────────────────────────────────── */}
-      <div className="absolute bottom-20 md:bottom-4 left-3 z-10"
+      <div className="absolute bottom-20 md:bottom-4 left-3 z-[1000]"
         style={{ maxHeight: "calc(100% - 200px)" }}>
         <LegendPanel
           summary={summary}
@@ -1201,7 +1201,7 @@ export function BTSMap({ filter }: BTSMapProps) {
 
       {/* ── ANALYTICS PANEL (above legend) ───────────────────────────── */}
       {showAnalytics && (
-        <div className="absolute bottom-20 md:bottom-4 z-10"
+        <div className="absolute bottom-20 md:bottom-4 z-[1000]"
           style={{ left: "230px" }}>
           <MiniAnalyticsPanel
             summary={summary}
@@ -1212,7 +1212,7 @@ export function BTSMap({ filter }: BTSMapProps) {
       )}
 
       {/* ── MAP VIEW + LOCATION (bottom-right) ───────────────────────── */}
-      <div className="absolute bottom-20 md:bottom-5 right-3 z-10 flex flex-col gap-1.5">
+      <div className="absolute bottom-20 md:bottom-5 right-3 z-[1000] flex flex-col gap-1.5">
         {(["street", "satellite", "terrain"] as MapView[]).map(v => (
           <button key={v} onClick={() => changeMapView(v)}
             className={cn(
@@ -1233,7 +1233,7 @@ export function BTSMap({ filter }: BTSMapProps) {
 
       {/* ── LIST PANEL (slide from left) ─────────────────────────────── */}
       {showList && (
-        <div className="absolute top-0 left-0 bottom-0 w-80 bg-card/97 backdrop-blur-xl border-r border-border/60 shadow-2xl z-20 flex flex-col">
+        <div className="absolute top-0 left-0 bottom-0 w-80 bg-card/97 backdrop-blur-xl border-r border-border/60 shadow-2xl z-[1020] flex flex-col">
           <div className="p-3 border-b border-border/40 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-bold">Daftar Tower</p>
@@ -1320,7 +1320,7 @@ export function BTSMap({ filter }: BTSMapProps) {
 
       {/* ── BTS DETAIL PANEL (right) ─────────────────────────────────── */}
       {sideOpen && selectedBTS && (
-        <div className="absolute top-0 right-0 bottom-0 w-full md:w-[380px] bg-card/97 backdrop-blur-xl border-l border-border/60 shadow-2xl z-20 flex flex-col">
+        <div className="absolute top-0 right-0 bottom-0 w-full md:w-[380px] bg-card/97 backdrop-blur-xl border-l border-border/60 shadow-2xl z-[1020] flex flex-col">
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border/40 shrink-0">
             <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0"

@@ -165,6 +165,29 @@
   font-family: inherit;
   border-radius: inherit;
 }
+
+/* ── Radix UI portals (Select, Dialog, etc.) stay above Leaflet ── */
+[data-radix-popper-content-wrapper] { z-index: 1040 !important; }
+[data-radix-select-viewport]        { z-index: 1040 !important; }
+
+/* ── Sonner toast always on top ──────────────────────────────── */
+[data-sonner-toaster]               { z-index: 1060 !important; }
+
+/* ── Force Leaflet internals to stay BELOW our UI overlays ── */
+/* Leaflet default: pane=400, tile=200, shadow=500, marker=600,
+   tooltip=650, popup=700, control=800.
+   We push our UI to 1000+ so it always wins.               */
+.leaflet-pane         { z-index: 400  !important; }
+.leaflet-tile-pane    { z-index: 200  !important; }
+.leaflet-shadow-pane  { z-index: 500  !important; }
+.leaflet-overlay-pane { z-index: 400  !important; }
+.leaflet-marker-pane  { z-index: 600  !important; }
+.leaflet-tooltip-pane { z-index: 650  !important; }
+.leaflet-popup-pane   { z-index: 700  !important; }
+/* Leaflet built-in controls (zoom, attribution) */
+.leaflet-top,
+.leaflet-bottom       { z-index: 800  !important; }
+
 .leaflet-control-zoom {
   border: none !important;
   box-shadow: 0 2px 12px rgba(0,0,0,0.15) !important;
