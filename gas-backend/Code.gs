@@ -9,12 +9,12 @@
 // ============================================================
 // CONFIGURATION — Update these IDs
 // ============================================================
-var SPREADSHEET_ID   = '1k1mc6ceMUgZEFGb7P21NEbkIyoejXokwr5CsBrNJLwMnilFmEWCxDbzBini';
+var SPREADSHEET_ID   = '1hRR-fVMZLA8r-IJ9Q_-7W1ZTC3AK5NkhkXvcEjJ-SuY';
 var SHEET_MASTER_BTS      = 'MASTER_BTS';
 var SHEET_MASTER_PROMOTOR = 'MASTER_PROMOTOR';
 var SHEET_MASTER_SPV      = 'MASTER_SPV';
 var SHEET_TRANSACTION     = 'TRANSACTION';
-var DRIVE_FOLDER_ID  = 'YOUR_DRIVE_FOLDER_ID'; // for photo uploads
+var DRIVE_FOLDER_ID  = '1chrtgi5feeWB4HQmcJ2KToNHm9-ZKsgY'; // for photo uploads
 
 // ============================================================
 // RESPONSE HELPER
@@ -101,10 +101,21 @@ function parseFilter(e) {
   };
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// DATE HELPER: normalise any Tanggal value (Date object or string) to yyyy-MM-dd
+// ──────────────────────────────────────────────────────────────────────────
+function normDate(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  // Already a string — take first 10 chars (handles ISO and locale strings)
+  return String(val).substring(0, 10);
+}
+
 function applyTransactionFilter(rows, f) {
   return rows.filter(function(r) {
-    var tgl = (r['Tanggal'] || '').toString().substring(0, 10);
-    if (f.dateFrom && tgl < f.dateFrom) return false;
+    var tgl = normDate(r['Tanggal']);
     if (f.dateTo   && tgl > f.dateTo)   return false;
     if (f.supervisor && r['Supervisor'] !== f.supervisor) return false;
     if (f.promotor   && r['Promotor']   !== f.promotor)   return false;
@@ -202,7 +213,7 @@ function mapTransaction(r) {
   return {
     id:              String(r['ID']             || ''),
     timestamp:       String(r['Timestamp']      || ''),
-    tanggal:         String(r['Tanggal']        || ''),
+    tanggal:         normDate(r['Tanggal']),
     jam:             String(r['Jam']            || ''),
     supervisor:      String(r['Supervisor']     || ''),
     promotor:        String(r['Promotor']       || ''),
@@ -257,7 +268,7 @@ function postTransaction(e) {
     return String(r['ID BTS']) === idBTS &&
            String(r['Brand'])  === brand &&
            String(r['MDN'])    === mdn &&
-           String(r['Tanggal']).substring(0, 10) === today;
+           normDate(r['Tanggal']) === today;
   });
   if (dup.length > 0) {
     return jsonResponse({ success: false, error: 'Duplicate: MDN ini sudah digunakan untuk BTS dan Brand yang sama hari ini.' });
@@ -338,7 +349,7 @@ function getDashboard(e) {
   var todayAct  = 0, weekAct = 0, monthAct = 0;
   var activatedBTSIds = {}, activePromotors = {}, brandCounts = {};
   filtered.forEach(function(r) {
-    var tgl = String(r['Tanggal'] || '').substring(0, 10);
+    var tgl = normDate(r['Tanggal']);
     if (tgl === today)        todayAct++;
     if (tgl >= weekStartStr)  weekAct++;
     if (tgl >= monthStart)    monthAct++;
@@ -399,7 +410,7 @@ function getAnalytics(e) {
   // Daily trend
   var dailyCounts = {};
   filtered.forEach(function(r) {
-    var d = String(r['Tanggal'] || '').substring(0, 10);
+    var d = normDate(r['Tanggal']);
     if (d) dailyCounts[d] = (dailyCounts[d] || 0) + 1;
   });
   // No slice limit — return all dates in the filtered range so the chart
@@ -411,7 +422,7 @@ function getAnalytics(e) {
   var weeklyCounts = {};
   filtered.forEach(function(r) {
     if (!r['Tanggal']) return;
-    var d = new Date(r['Tanggal']);
+    var d = (r['Tanggal'] instanceof Date) ? r['Tanggal'] : new Date(normDate(r['Tanggal']));
     if (isNaN(d.getTime())) return;
     var w = Utilities.formatDate(d, tz, 'yyyy-ww');
     weeklyCounts[w] = (weeklyCounts[w] || 0) + 1;
@@ -422,7 +433,7 @@ function getAnalytics(e) {
   // Monthly trend
   var monthlyCounts = {};
   filtered.forEach(function(r) {
-    var d = String(r['Tanggal'] || '').substring(0, 7);
+    var d = normDate(r['Tanggal']).substring(0, 7);
     if (d) monthlyCounts[d] = (monthlyCounts[d] || 0) + 1;
   });
   var monthlyTrend = Object.keys(monthlyCounts).sort()
@@ -459,7 +470,7 @@ function getAnalytics(e) {
     hourC[hour]++;
 
     if (r['Tanggal']) {
-      var dt = new Date(r['Tanggal']);
+      var dt = (r['Tanggal'] instanceof Date) ? r['Tanggal'] : new Date(normDate(r['Tanggal']));
       if (!isNaN(dt.getTime())) wdC[dt.getDay()]++;
     }
   });
@@ -519,7 +530,7 @@ function getGallery(e) {
     return {
       id:           String(r['ID']          || ''),
       timestamp:    String(r['Timestamp']   || ''),
-      tanggal:      String(r['Tanggal']     || ''),
+      tanggal:      normDate(r['Tanggal']),
       promotor:     String(r['Promotor']    || ''),
       supervisor:   String(r['Supervisor']  || ''),
       brand:        String(r['Brand']       || ''),
@@ -565,12 +576,12 @@ function getMapData(e) {
     var id   = String(bts['Tower ID'] || bts['ID BTS'] || '');
     var acts = btsActs[id] || [];
     acts.sort(function(a, b) {
-      return String(b['Tanggal']).localeCompare(String(a['Tanggal']));
+      return normDate(b['Tanggal']).localeCompare(normDate(a['Tanggal']));
     });
     var last = acts[0] || null;
     var markerStatus = 'never';
     if (last) {
-      var d = String(last['Tanggal'] || '').substring(0, 10);
+      var d = normDate(last['Tanggal']);
       if      (d === today)        markerStatus = 'today';
       else if (d >= weekStartStr)  markerStatus = 'week';
       else if (d >= monthStart)    markerStatus = 'month';
@@ -589,7 +600,7 @@ function getMapData(e) {
       spv:             String(bts['SPV']         || ''),
       markerStatus:    markerStatus,
       activationCount: acts.length,
-      lastActivation:  last ? (String(last['Tanggal']) + ' ' + String(last['Jam'])) : null,
+      lastActivation:  last ? (normDate(last['Tanggal']) + ' ' + String(last['Jam'] || '')) : null,
       lastPromotor:    last ? String(last['Promotor'] || '') : null,
       lastPhotoURL:    last ? String(last['Photo URL']|| '') : null
     };
