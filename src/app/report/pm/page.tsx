@@ -47,9 +47,9 @@ interface PMAccRow {
   brand: string;
   towerIds: string[];        // daftar tower unik di hari itu
   speedtests: string[];      // daftar speedtest di hari itu
-  aktivasiHariIni: number;   // jumlah aktivasi hari itu
-  saldoAwal: number;         // akumulasi s/d hari sebelumnya
-  saldoAkhir: number;        // saldoAwal + aktivasiHariIni
+  aktivasiHariIni: number;   // jumlah teraktivasi hari itu
+  saldoAwal: number;         // = aktivasiHariIni (total penjualan/seeding hari itu)
+  saldoAkhir: number;        // selalu 0 (sudah habis semua)
   remark: string;
 }
 
@@ -105,8 +105,8 @@ function buildAccRows(transactions: Transaction[]): PMAccRow[] {
         towerIds,
         speedtests,
         aktivasiHariIni:  count,
-        saldoAwal:        running,
-        saldoAkhir:       running + count,
+        saldoAwal:        count,   // total penjualan = aktivasi hari itu
+        saldoAkhir:       0,       // selalu 0 (sudah habis/terjual semua)
         remark:           "",
       });
       running += count;
@@ -137,7 +137,7 @@ function exportToExcel(rows: PMAccRow[], filterInfo: PMFilter) {
     "Promotor Name",
     "Brand",
     "Supervisor",
-    "Aktivasi Hari Ini",
+    "Aktivasi",
     "Saldo Awal",
     "Saldo Akhir",
     "Remark",
@@ -329,15 +329,16 @@ function PMFilterPanel({
 // ─── Table Preview ─────────────────────────────────────────────────────────────
 function PMTable({ rows, isLoading }: { rows: PMAccRow[]; isLoading: boolean }) {
   const COLS = [
-    { label: "No",                       cls: "w-10 text-center" },
-    { label: "Tanggal Seeding",          cls: "min-w-[110px] text-center" },
-    { label: "Tower ID",                 cls: "min-w-[160px]" },
-    { label: "Speedtest Result",         cls: "min-w-[130px] text-center" },
-    { label: "Promotor Name",            cls: "min-w-[140px]" },
-    { label: "Brand",                    cls: "min-w-[80px] text-center" },
-    { label: "Aktivasi\nHari Ini",       cls: "min-w-[80px] text-center" },
-    { label: "Saldo Awal",               cls: "min-w-[80px] text-center" },
-    { label: "Saldo Akhir",              cls: "min-w-[80px] text-center" },
+    { label: "No",               cls: "w-10 text-center" },
+    { label: "Tanggal Seeding",  cls: "min-w-[110px] text-center" },
+    { label: "Tower ID",         cls: "min-w-[160px]" },
+    { label: "Speedtest Result", cls: "min-w-[130px] text-center" },
+    { label: "Promotor Name",    cls: "min-w-[140px]" },
+    { label: "Brand",            cls: "min-w-[80px] text-center" },
+    { label: "Aktivasi",         cls: "min-w-[80px] text-center" },
+    { label: "Saldo Awal",       cls: "min-w-[80px] text-center" },
+    { label: "Saldo Akhir",      cls: "min-w-[80px] text-center" },
+    { label: "Remark",           cls: "min-w-[120px]" },
   ];
 
   if (isLoading) {
@@ -390,8 +391,9 @@ function PMTable({ rows, isLoading }: { rows: PMAccRow[]; isLoading: boolean }) 
               <td className="border px-3 py-2.5 font-medium" style={{ borderColor: "#c5d0e6" }}>{r.promotor}</td>
               <td className="border px-3 py-2.5 text-center font-semibold" style={{ borderColor: "#c5d0e6", color: "#6d28d9" }}>{r.brand || "—"}</td>
               <td className="border px-3 py-2.5 text-center font-bold text-blue-700" style={{ borderColor: "#c5d0e6" }}>{r.aktivasiHariIni}</td>
-              <td className="border px-3 py-2.5 text-center tabular-nums text-muted-foreground" style={{ borderColor: "#c5d0e6" }}>{r.saldoAwal}</td>
-              <td className="border px-3 py-2.5 text-center font-bold text-green-700" style={{ borderColor: "#c5d0e6" }}>{r.saldoAkhir}</td>
+              <td className="border px-3 py-2.5 text-center tabular-nums" style={{ borderColor: "#c5d0e6", color: "#1e3a6e" }}>{r.saldoAwal}</td>
+              <td className="border px-3 py-2.5 text-center font-bold" style={{ borderColor: "#c5d0e6", color: "#6b7280" }}>0</td>
+              <td className="border px-3 py-2.5 text-[10px]" style={{ borderColor: "#c5d0e6", color: "#555" }}>{r.remark || ""}</td>
             </tr>
           ))}
         </tbody>
@@ -404,10 +406,11 @@ function PMTable({ rows, isLoading }: { rows: PMAccRow[]; isLoading: boolean }) 
             <td className="border px-3 py-2.5 text-center font-bold text-blue-800" style={{ borderColor: "#c5d0e6" }}>
               {rows.reduce((s, r) => s + r.aktivasiHariIni, 0)}
             </td>
-            <td className="border px-3 py-2.5" style={{ borderColor: "#c5d0e6" }} />
-            <td className="border px-3 py-2.5 text-center font-bold text-green-800" style={{ borderColor: "#c5d0e6" }}>
-              {Math.max(...rows.map(r => r.saldoAkhir), 0)}
+            <td className="border px-3 py-2.5 text-center font-bold" style={{ borderColor: "#c5d0e6", color: "#1e3a6e" }}>
+              {rows.reduce((s, r) => s + r.saldoAwal, 0)}
             </td>
+            <td className="border px-3 py-2.5 text-center font-bold" style={{ borderColor: "#c5d0e6", color: "#6b7280" }}>0</td>
+            <td className="border px-3 py-2.5" style={{ borderColor: "#c5d0e6" }} />
           </tr>
         </tfoot>
       </table>
@@ -563,7 +566,7 @@ export default function PMReportPage() {
         {!isLoading && accRows.length > 0 && (
           <div className="px-4 py-3 border-t border-border/40 bg-muted/20 text-xs text-muted-foreground flex items-center justify-between">
             <span>Menampilkan <b>{accRows.length}</b> baris akumulasi</span>
-            <span>Saldo akhir maksimal: <b className="text-green-700">{Math.max(...accRows.map(r => r.saldoAkhir), 0)}</b></span>
+            <span>Total aktivasi: <b className="text-blue-700">{accRows.reduce((s, r) => s + r.aktivasiHariIni, 0)}</b></span>
           </div>
         )}
       </div>
