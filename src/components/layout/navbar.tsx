@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Map, BarChart3, PlusCircle,
   Table2, Image, Database, Settings,
   Sun, Moon, Monitor, X, Radio, Zap,
-  ShieldCheck, LogOut, LogIn, Target,
+  ShieldCheck, LogOut, LogIn, Target, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
@@ -23,6 +23,7 @@ const navItems = [
   { href: "/analytics",       label: "Analitik",       icon: BarChart3,       shortLabel: "Analitik", adminOnly: false },
   { href: "/tower-analysis",  label: "Target Tower",   icon: Target,          shortLabel: "Target",   adminOnly: false },
   { href: "/report",          label: "Laporan",        icon: Table2,          shortLabel: "Laporan",  adminOnly: false },
+  { href: "/report/pm",       label: "PM Report",      icon: FileText,        shortLabel: "PM",       adminOnly: false },
   { href: "/gallery",         label: "Galeri",         icon: Image,           shortLabel: "Galeri",   adminOnly: false },
   { href: "/master",          label: "Master",         icon: Database,        shortLabel: "Master",   adminOnly: true  },
   { href: "/settings",        label: "Pengaturan",     icon: Settings,        shortLabel: "Setting",  adminOnly: true  },
