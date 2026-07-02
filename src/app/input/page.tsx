@@ -11,7 +11,7 @@ import {
   Send, AlertTriangle, CheckCircle2, WifiOff,
   UserCircle, Radio, Users2, Tag, Hash, Camera, MapPin,
   ChevronRight, PartyPopper, RotateCcw, LayoutDashboard,
-  Gauge,
+  Wifi,
 } from "lucide-react";
 
 import { PageContainer }     from "@/components/layout/page-container";
@@ -506,7 +506,7 @@ export default function InputPage() {
                 </FormSection>
 
                 {/* 8. Speedtest */}
-                <FormSection step={8} icon={Gauge} gradient="from-teal-500 to-teal-600"
+                <FormSection step={8} icon={Wifi} gradient="from-teal-500 to-teal-600"
                   title="Hasil Speedtest" subtitle="Kecepatan internet di lokasi BTS"
                   done={!!speedtest && !!speedtestPhoto}>
 
@@ -560,7 +560,7 @@ export default function InputPage() {
                           <span className="text-xs font-bold leading-none">✕</span>
                         </button>
                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-2 flex items-center gap-1">
-                          <Gauge className="h-3 w-3" />
+                          <Wifi className="h-3 w-3" />
                           Screenshot speedtest siap dikirim
                         </div>
                       </div>
@@ -570,7 +570,7 @@ export default function InputPage() {
                         speedtestPhotoError ? "border-destructive" : "border-border hover:border-teal-400/60",
                         "transition-colors"
                       )}>
-                        <Gauge className="h-9 w-9 mx-auto text-muted-foreground" />
+                        <Wifi className="h-9 w-9 mx-auto text-muted-foreground" />
                         <div>
                           <p className="text-sm font-medium">Screenshot Speedtest</p>
                           <p className="text-xs text-muted-foreground mt-1">
