@@ -11,6 +11,7 @@ import {
   Send, AlertTriangle, CheckCircle2, WifiOff,
   UserCircle, Radio, Users2, Tag, Hash, Camera, MapPin,
   ChevronRight, PartyPopper, RotateCcw, LayoutDashboard,
+  Gauge,
 } from "lucide-react";
 
 import { PageContainer }     from "@/components/layout/page-container";
@@ -106,12 +107,15 @@ export default function InputPage() {
   const { data: promotorData = [], isLoading: promotorLoading } = useMasterPromotor();
   const { data: spvData = [],      isLoading: spvLoading }      = useMasterSPV();
 
-  const [selectedBTS,   setSelectedBTS]   = useState<MasterBTS | null>(null);
-  const [btsError,      setBtsError]      = useState("");
-  const [photoBase64,   setPhotoBase64]   = useState<string | null>(null);
-  const [photoError,    setPhotoError]    = useState("");
-  const [gpsData,       setGpsData]       = useState<{ lat: number; lng: number; distance: number } | null>(null);
-  const [selectedBrand, setSelectedBrand] = useState("");
+  const [selectedBTS,       setSelectedBTS]       = useState<MasterBTS | null>(null);
+  const [btsError,          setBtsError]          = useState("");
+  const [photoBase64,       setPhotoBase64]        = useState<string | null>(null);
+  const [photoError,        setPhotoError]         = useState("");
+  const [gpsData,           setGpsData]            = useState<{ lat: number; lng: number; distance: number } | null>(null);
+  const [selectedBrand,     setSelectedBrand]      = useState("");
+  const [speedtest,         setSpeedtest]          = useState("");
+  const [speedtestPhoto,    setSpeedtestPhoto]     = useState<string | null>(null);
+  const [speedtestPhotoError, setSpeedtestPhotoError] = useState("");
 
   // Success screen data
   const [successData, setSuccessData] = useState<{
@@ -124,6 +128,7 @@ export default function InputPage() {
     towerName: string;
     mdn: string;
     distance: number;
+    speedtest: string;
   } | null>(null);
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } =
@@ -154,6 +159,8 @@ export default function InputPage() {
       fd.append("device",          getDeviceInfo());
       fd.append("browser",         getBrowserInfo());
       fd.append("tanggal",         getTodayString());
+      if (speedtest)       fd.append("speedtest",      speedtest);
+      if (speedtestPhoto)  fd.append("speedtestPhoto", speedtestPhoto);
       return postTransaction(fd);
     },
     onSuccess: (data) => {
@@ -168,6 +175,7 @@ export default function InputPage() {
         towerName: selectedBTS?.towerName || "",
         mdn:       vals.mdn,
         distance:  gpsData?.distance || 0,
+        speedtest: speedtest || "—",
       });
       toast.success("Aktivasi berhasil! 🎉", { description: `ID: ${data.id}` });
       reset();
@@ -177,6 +185,9 @@ export default function InputPage() {
       setBtsError("");
       setPhotoError("");
       setSelectedBrand("");
+      setSpeedtest("");
+      setSpeedtestPhoto(null);
+      setSpeedtestPhotoError("");
       queryClient.invalidateQueries({ queryKey: [CACHE_KEYS.dashboard] });
       queryClient.invalidateQueries({ queryKey: [CACHE_KEYS.transactions] });
     },
@@ -214,6 +225,7 @@ export default function InputPage() {
   const steps = [
     !!supervisorValue, !!selectedBTS, !!promotorValue,
     !!selectedBrand, !!(watch("mdn")?.length >= 8), !!photoBase64,
+    !!speedtest, !!speedtestPhoto,
   ];
   const completedSteps = steps.filter(Boolean).length;
   const progress = (completedSteps / steps.length) * 100;
@@ -268,6 +280,7 @@ export default function InputPage() {
                   { label: "Promotor",   value: successData.promotor },
                   { label: "Brand",      value: successData.brand, isColor: true },
                   { label: "MDN",        value: successData.mdn, isMono: true },
+                  { label: "Speedtest",  value: successData.speedtest },
                   { label: "Jarak BTS",  value: `${Math.round(successData.distance)} m`, isDistance: true },
                 ].map(({ label, value, isColor, isMono, isDistance }) => (
                   <div key={label} className="flex items-center justify-between px-4 py-3 gap-3">
@@ -490,6 +503,139 @@ export default function InputPage() {
                     btsLng={selectedBTS?.longitude}
                     onLocationCapture={(lat, lng, distance) => setGpsData({ lat, lng, distance })}
                   />
+                </FormSection>
+
+                {/* 8. Speedtest */}
+                <FormSection step={8} icon={Gauge} gradient="from-teal-500 to-teal-600"
+                  title="Hasil Speedtest" subtitle="Kecepatan internet di lokasi BTS"
+                  done={!!speedtest && !!speedtestPhoto}>
+
+                  {/* Input nilai Mbps */}
+                  <div className="space-y-1.5 mb-4">
+                    <Label htmlFor="speedtest" className="text-sm">
+                      Hasil Speedtest (Mbps)
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="speedtest"
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.1"
+                        placeholder="Contoh: 52"
+                        value={speedtest}
+                        onChange={(e) => setSpeedtest(e.target.value)}
+                        className="h-12 text-lg font-mono pr-16"
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+                        Mbps
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Opsional — isi hasil speedtest aplikasi (misal FAST.com / Speedtest.net)
+                    </p>
+                  </div>
+
+                  {/* Upload foto dokumentasi speedtest */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Dokumentasi Screenshot Speedtest</Label>
+                    {speedtestPhoto ? (
+                      <div className="relative rounded-xl overflow-hidden border border-border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={speedtestPhoto}
+                          alt="Speedtest Screenshot"
+                          className="w-full h-48 object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSpeedtestPhoto(null);
+                            setSpeedtestPhotoError("");
+                          }}
+                          className="absolute top-2 right-2 h-7 w-7 rounded-full bg-red-500 hover:bg-red-600
+                            flex items-center justify-center text-white shadow-md transition-colors"
+                          aria-label="Hapus foto speedtest"
+                        >
+                          <span className="text-xs font-bold leading-none">✕</span>
+                        </button>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-2 flex items-center gap-1">
+                          <Gauge className="h-3 w-3" />
+                          Screenshot speedtest siap dikirim
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={cn(
+                        "border-2 border-dashed rounded-xl p-5 text-center space-y-3",
+                        speedtestPhotoError ? "border-destructive" : "border-border hover:border-teal-400/60",
+                        "transition-colors"
+                      )}>
+                        <Gauge className="h-9 w-9 mx-auto text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Screenshot Speedtest</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Foto layar hasil speedtest • Opsional
+                          </p>
+                        </div>
+                        <div className="flex gap-2 justify-center">
+                          <label className="cursor-pointer">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border
+                              bg-background hover:bg-muted/60 text-xs font-medium transition-colors">
+                              <Camera className="h-3.5 w-3.5" />
+                              Kamera
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  const result = ev.target?.result as string;
+                                  setSpeedtestPhoto(result);
+                                  setSpeedtestPhotoError("");
+                                };
+                                reader.readAsDataURL(file);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                          <label className="cursor-pointer">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border
+                              bg-background hover:bg-muted/60 text-xs font-medium transition-colors">
+                              <Camera className="h-3.5 w-3.5" />
+                              Galeri
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  const result = ev.target?.result as string;
+                                  setSpeedtestPhoto(result);
+                                  setSpeedtestPhotoError("");
+                                };
+                                reader.readAsDataURL(file);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                    {speedtestPhotoError && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />{speedtestPhotoError}
+                      </p>
+                    )}
+                  </div>
                 </FormSection>
 
                 {/* Submit */}

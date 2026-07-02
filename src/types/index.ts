@@ -61,6 +61,8 @@ export interface Transaction {
   device: string;
   browser: string;
   status: string;
+  speedtest: string;           // Hasil speedtest (Mbps)
+  speedtestPhotoURL: string;   // URL foto dokumentasi speedtest
 }
 
 export interface TransactionInput {

@@ -227,7 +227,9 @@ function mapTransaction(r) {
     googleMapsURL:   String(r['Google Maps URL']|| ''),
     device:          String(r['Device']         || ''),
     browser:         String(r['Browser']        || ''),
-    status:          String(r['Status']         || 'Success')
+    status:          String(r['Status']         || 'Success'),
+    speedtest:       String(r['Speedtest']      || ''),
+    speedtestPhotoURL: String(r['Speedtest Photo URL'] || '')
   };
 }
 
@@ -294,6 +296,25 @@ function postTransaction(e) {
     }
   }
 
+  // Upload speedtest photo to Drive
+  var speedtestPhotoURL = '';
+  if (params.speedtestPhoto && DRIVE_FOLDER_ID !== 'YOUR_DRIVE_FOLDER_ID') {
+    try {
+      var stB64  = params.speedtestPhoto.indexOf(',') > -1
+                     ? params.speedtestPhoto.split(',')[1]
+                     : params.speedtestPhoto;
+      var stBlob = Utilities.newBlob(
+                     Utilities.base64Decode(stB64), 'image/jpeg',
+                     'speedtest_' + idBTS + '_' + now.getTime() + '.jpg');
+      var stFolder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+      var stFile   = stFolder.createFile(stBlob);
+      stFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      speedtestPhotoURL = 'https://drive.google.com/uc?id=' + stFile.getId();
+    } catch (stErr) {
+      speedtestPhotoURL = '';
+    }
+  }
+
   var id    = 'TXN-' + now.getTime();
   var tanggal = today;
   var jam     = Utilities.formatDate(now, tz, 'HH:mm:ss');
@@ -304,7 +325,8 @@ function postTransaction(e) {
       'ID','Timestamp','Tanggal','Jam',
       'Supervisor','Promotor','Brand','ID BTS','MDN','Photo URL',
       'Latitude User','Longitude User','Distance From BTS',
-      'Google Maps URL','Device','Browser','Status'
+      'Google Maps URL','Device','Browser','Status',
+      'Speedtest','Speedtest Photo URL'
     ]);
   }
 
@@ -319,7 +341,9 @@ function postTransaction(e) {
     String(params.googleMapsURL || ''),
     String(params.device  || ''),
     String(params.browser || ''),
-    'Success'
+    'Success',
+    String(params.speedtest || ''),
+    speedtestPhotoURL
   ]);
 
   return jsonResponse({ success: true, id: id, message: 'Transaction saved successfully' });
